@@ -183,7 +183,7 @@ void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-QString CBrokerBinary::m_ReuestTypeStr(RequestType requestType)
+QString CBrokerBinary::m_RequestTypeStr(RequestType requestType)
 {
   switch(requestType)
   {
@@ -204,7 +204,7 @@ QString CBrokerBinary::m_ReuestTypeStr(RequestType requestType)
 void CBrokerBinary::m_SendSocketMessage(RequestType requestType
   , const QString& strMsg)
 {
-  DEBUG_APP(QString("Send message socket %1").arg(m_ReuestTypeStr(requestType))
+  DEBUG_APP(QString("Send message socket %1").arg(m_RequestTypeStr(requestType))
     , strMsg);
   m_lastRequestType = requestType;  
   m_webSocket.sendTextMessage(strMsg);

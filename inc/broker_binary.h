@@ -67,7 +67,7 @@ private:
   QWebSocket m_webSocket;
   RequestType m_lastRequestType;
   
-  QString m_ReuestTypeStr(RequestType);
+  QString m_RequestTypeStr(RequestType);
   void m_SendSocketMessage(RequestType, const QString&);
 };
 
