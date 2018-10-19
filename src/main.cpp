@@ -29,6 +29,9 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include "QtTelegramBot/qttelegrambot.h"
+#include "broker_binary.h"
+#include "telegram_bot.h"
+
 
 /* ==========================================================================
  * CUSTOMIZABLE MODULE PRIVATE MACROS
@@ -41,7 +44,8 @@
 /* ==========================================================================
  * STATIC VARIABLES FOR MODULE
  * ========================================================================== */
-Telegram::Bot *bot;
+CBrokerBinary* pBrokerBinary;
+CTelegramBot* pTelegramBot;
 
 /* ==========================================================================
  * MODULE PRIVATE TYPE DECLARATIONS
@@ -54,37 +58,6 @@ Telegram::Bot *bot;
 /* ==========================================================================
  * STATIC MEMBERS
  * ========================================================================== */
-void newMessage(Telegram::Message message)
-{
-#if APP_MAIN_DEBUG == 1
-  QDateTime dt = QDateTime::currentDateTime();
-  qDebug() << "===============================================================";
-  qDebug() << dt.toString();
-  //qDebug() << "new message:" << message;
-  qDebug() << "       text:" << message.string;
-  QString strMessage = message.string;
-  //GBP USD CALL 5 MIN WAIT CONFIRM
-  //USD CHF CALL 5 MIN WAIT CONFIRM
-  //GO
-  //NO
-  if (strMessage.endsWith("WAIT CONFIRM")) {
-    QString strChangeFrom = strMessage.mid(0,3);
-    QString strChangeTo   = strMessage.mid(4,3);
-    qDebug() << "Broker attendi conferma " 
-      << strChangeFrom << "->" << strChangeTo 
-      << " ...";
-  }
-  else if (strMessage == "GO") {
-    qDebug() << "Broker SCOMMETTI ORA! ";
-  }
-  else if (strMessage == "NO") {
-    qDebug() << "Broker NON SCOMMETTERE! ";
-  }
-#endif
-  /*if (bot && message.type == Telegram::Message::TextType) {
-    bot->sendMessage(message.from.id, message.string);
-  }*/
-}
 
 /* ==========================================================================
  * APPLICATION ENTRY POINT: Main
@@ -92,25 +65,50 @@ void newMessage(Telegram::Message message)
 int main(int argc,char* argv[])
 {
   QCoreApplication a(argc, argv);
-  QString strToken;
+  QString strTokenBroker;
+  QString strTokenBot;  
   for (auto j = 0; j < argc; ++j) {
     QString strArgName = argv[j];
-    if (strArgName == "--token") {
+    if (strArgName == "--tokenbroker") {
       const char* pStr = argv[++j];
       if (nullptr == pStr) {
-        qDebug() << "--token requires a token identifier.";
+        qDebug() << "--tokenbroker requires a token identifier.";
         return 0;
       }
       else
       {
-        strToken = pStr;
+        strTokenBroker = pStr;
+      }
+    }
+    else if (strArgName == "--tokenbot") {
+      const char* pStr = argv[++j];
+      if (nullptr == pStr) {
+        qDebug() << "--tokenbot requires a token identifier.";
+        return 0;
+      }
+      else
+      {
+        strTokenBot = pStr;
       }
     }
   }
+  if (strTokenBroker.isEmpty()) {
+    qDebug() << "Required --tokenbroker <TOKEN>.";
+    return 0;
+  }
+  if (strTokenBot.isEmpty()) {
+    qDebug() << "Required --tokenbot <TOKEN>.";
+    return 0;
+  }
+  pBrokerBinary = new CBrokerBinary(strTokenBroker);
+  qDebug() << "Started Broker Binary";
 
-  bot = new Telegram::Bot(strToken, true, 500, 4);
-  QObject::connect(bot, &Telegram::Bot::message, &newMessage);
+  pTelegramBot = new CTelegramBot(strTokenBot, true, 500, 4);
   qDebug() << "Started Broker Telegram Bot";
+
+  QObject::connect(
+      pTelegramBot,  &Telegram::Bot::message
+    , pBrokerBinary, &CBrokerBinary::slotOnMessageTelegramBot);  
   
   return a.exec();
 }
