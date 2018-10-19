@@ -44,6 +44,27 @@
  * STATIC MEMBERS
  * ========================================================================== */
 /* ==========================================================================
+ *        FUNCTION NAME: DEBUG_APP
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181019
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CBrokerBinary::DEBUG_APP(const QString& strFunc, const QString& strMsg)
+{
+#if BROKER_BINARY_DEBUG == 1
+  QDateTime dt = QDateTime::currentDateTime();
+  qDebug() << "========================= DEBUG ===============================";
+  qDebug() << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc;
+  if (!strMsg.isEmpty()) {
+    qDebug() << strMsg;
+  }
+  qDebug() << "===============================================================";
+#endif
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: CWdgGCPView
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181019
@@ -51,10 +72,21 @@
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CBrokerBinary::CBrokerBinary(QString token, QObject *parent)
-: QObject    { parent }
-, m_strToken {  token }
-{  
+CBrokerBinary::CBrokerBinary(const QString& app_id, const QString& token
+  , QObject *parent)
+: QObject           {                parent }
+, m_strAppId        {                app_id }
+, m_strToken        {                 token }
+, m_lastRequestType { RequestType::kNOTHING }
+{
+  m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
+    .arg(m_strAppId));
+  DEBUG_APP("WebSocket server", m_url.toString());  
+  connect(&m_webSocket, &QWebSocket::connected   , this
+    , &CBrokerBinary::slotOnSocketConnected);
+  connect(&m_webSocket, &QWebSocket::disconnected, this
+    , &CBrokerBinary::closed);
+  m_webSocket.open(QUrl(m_url));
 }
 
 /* ==========================================================================
@@ -70,6 +102,39 @@ CBrokerBinary::~CBrokerBinary()
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnSocketConnected
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181019
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CBrokerBinary::slotOnSocketConnected()
+{
+  DEBUG_APP("WebSocket connected");
+  connect(&m_webSocket, &QWebSocket::textMessageReceived, this
+    , &CBrokerBinary::slotOnMessageSocketReceived);
+  // authorize
+  m_SendSocketMessage(RequestType::kAUTHORIZE
+    , QStringLiteral("{\"authorize\": \"%1\"}").arg(m_strToken));
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnMessageSocketReceived
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181019
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
+{
+  DEBUG_APP("Received message socket", strMsg);
+  //m_webSocket.close();
+}
+
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnMessageTelegramBot
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181019
@@ -79,7 +144,8 @@ CBrokerBinary::~CBrokerBinary()
  * ========================================================================== */
 void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
-#if BROKER_BINARY_DEBUG == 1
+  DEBUG_APP("Telegram message received", message.string);
+#if 0 //BROKER_BINARY_DEBUG == 1
   QDateTime dt = QDateTime::currentDateTime();
   qDebug() << "===============================================================";
   qDebug() << dt.toString();
@@ -107,4 +173,39 @@ void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
   /*if (bot && message.type == Telegram::Message::TextType) {
     bot->sendMessage(message.from.id, message.string);
   }*/
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_SendSocketMessage
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181019
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+QString CBrokerBinary::m_ReuestTypeStr(RequestType requestType)
+{
+  switch(requestType)
+  {
+  case RequestType::kNOTHING :  return "NOTHING";
+  case RequestType::kAUTHORIZE: return "AUTHORIZE";  
+  }
+  return "UNKNOWN";
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_SendSocketMessage
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181019
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CBrokerBinary::m_SendSocketMessage(RequestType requestType
+  , const QString& strMsg)
+{
+  DEBUG_APP(QString("Send message socket %1").arg(m_ReuestTypeStr(requestType))
+    , strMsg);
+  m_lastRequestType = requestType;  
+  m_webSocket.sendTextMessage(strMsg);
 }

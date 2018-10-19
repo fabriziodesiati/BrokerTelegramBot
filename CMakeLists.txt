@@ -54,8 +54,9 @@ endif (MSVC)
 
 # Qt5 setup directives
 set(CMAKE_AUTOMOC ON)
-find_package(   Qt5Core REQUIRED)
-find_package(Qt5Network REQUIRED)
+find_package(      Qt5Core REQUIRED)
+find_package(   Qt5Network REQUIRED)
+find_package(Qt5WebSockets REQUIRED)
 
 # The rpath to use for installed targets
 if     (${WIN32})
@@ -73,6 +74,7 @@ set(QTTELEGRAMBOT_PATH "QtTelegramBot")
 set(LIBS
   Qt5::Core
   Qt5::Network
+  Qt5::WebSockets
 )
 
 # Update the central variable containing all external includes

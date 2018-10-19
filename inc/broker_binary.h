@@ -20,6 +20,7 @@
  * ========================================================================== */
 #include "app_priv.h"
 #include <QObject>
+#include <QtWebSockets/QWebSocket>
 #include "QtTelegramBot/types/message.h"
 
 /* ==========================================================================
@@ -32,20 +33,42 @@
 class CBrokerBinary : public QObject
 {
   Q_OBJECT
-  public:
-    /**
-     * CBrokerBinary constructor
-     * @param token
-     * @param parent
-     */
-    explicit CBrokerBinary(QString token, QObject *parent = 0);
-    ~CBrokerBinary();
-  
-  public slots:
-    void slotOnMessageTelegramBot(Telegram::Message);
+public:
+  static void DEBUG_APP(const QString&, const QString& = {});
+
+  enum class RequestType
+  {
+      kNOTHING
+    , kAUTHORIZE
+  };
+
+  /**
+    * CBrokerBinary constructor
+    * @param app_id
+    * @param url
+    * @param parent
+    */
+  explicit CBrokerBinary(const QString& app_id, const QString& token
+    , QObject* parent = 0);
+  ~CBrokerBinary();
+
+signals:
+  void closed();
+
+public slots:
+  void slotOnSocketConnected();
+  void slotOnMessageSocketReceived(QString message);
+  void slotOnMessageTelegramBot(Telegram::Message);    
     
-  private:
-    QString m_strToken;
+private:
+  QString m_strAppId;
+  QString m_strToken;
+  QUrl m_url;
+  QWebSocket m_webSocket;
+  RequestType m_lastRequestType;
+  
+  QString m_ReuestTypeStr(RequestType);
+  void m_SendSocketMessage(RequestType, const QString&);
 };
 
 #endif // BROKER_BINARY_H

@@ -53,6 +53,7 @@
 CTelegramBot::CTelegramBot(QString token, bool updates, quint32 updateInterval
   , quint32 pollingTimeout, QObject *parent)
 : Telegram::Bot { token, updates, updateInterval, pollingTimeout, parent }
+, m_strToken    { token                                                  }
 {  
 }
 

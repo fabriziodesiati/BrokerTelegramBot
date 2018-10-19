@@ -30,19 +30,22 @@
  * ========================================================================== */
 class CTelegramBot : public Telegram::Bot
 {
-  public:
-    /**
-     * CTelegramBot constructor
-     * @param token
-     * @param updates - enable automatic update polling
-     * @param updateInterval - interval between update polls in msec
-     * @param pollingTimeout - timeout in sec
-     * @param parent
-     */
-    explicit CTelegramBot(QString token, bool updates = false
-      , quint32 updateInterval = 1000, quint32 pollingTimeout = 0
-      , QObject *parent = 0);
-    ~CTelegramBot();
+public:
+  /**
+    * CTelegramBot constructor
+    * @param token
+    * @param updates - enable automatic update polling
+    * @param updateInterval - interval between update polls in msec
+    * @param pollingTimeout - timeout in sec
+    * @param parent
+    */
+  explicit CTelegramBot(QString token, bool updates = false
+    , quint32 updateInterval = 1000, quint32 pollingTimeout = 0
+    , QObject *parent = 0);
+  ~CTelegramBot();
+
+private:
+  QString m_strToken;
 };
 
 #endif // TELEGRAM_BOT_H

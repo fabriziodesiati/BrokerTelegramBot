@@ -20,7 +20,7 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_MAIN_DEBUG 1
+#define APP_MAIN_DEBUG 0
 
 /* ==========================================================================
  * INCLUDES
@@ -65,14 +65,26 @@ CTelegramBot* pTelegramBot;
 int main(int argc,char* argv[])
 {
   QCoreApplication a(argc, argv);
+  QString strAppIdBroker;
   QString strTokenBroker;
   QString strTokenBot;  
   for (auto j = 0; j < argc; ++j) {
     QString strArgName = argv[j];
-    if (strArgName == "--tokenbroker") {
+    if (strArgName == "--app_id-broker") {
       const char* pStr = argv[++j];
       if (nullptr == pStr) {
-        qDebug() << "--tokenbroker requires a token identifier.";
+        qWarning() << "--app_id-broker requires a app_id identifier.";
+        return 0;
+      }
+      else
+      {
+        strAppIdBroker = pStr;
+      }
+    }
+    else if (strArgName == "--token-broker") {
+      const char* pStr = argv[++j];
+      if (nullptr == pStr) {
+        qWarning() << "--token-broker requires a token identifier.";
         return 0;
       }
       else
@@ -80,10 +92,10 @@ int main(int argc,char* argv[])
         strTokenBroker = pStr;
       }
     }
-    else if (strArgName == "--tokenbot") {
+    else if (strArgName == "--token-bot") {
       const char* pStr = argv[++j];
       if (nullptr == pStr) {
-        qDebug() << "--tokenbot requires a token identifier.";
+        qWarning() << "--token-bot requires a token identifier.";
         return 0;
       }
       else
@@ -92,19 +104,31 @@ int main(int argc,char* argv[])
       }
     }
   }
+  if (strAppIdBroker.isEmpty()) {
+    qWarning() << "Required --tokenbroker <TOKEN>.";
+    return 0;
+  }
   if (strTokenBroker.isEmpty()) {
-    qDebug() << "Required --tokenbroker <TOKEN>.";
+    qWarning() << "Required --tokenbroker <TOKEN>.";
     return 0;
   }
   if (strTokenBot.isEmpty()) {
-    qDebug() << "Required --tokenbot <TOKEN>.";
+    qWarning() << "Required --tokenbot <TOKEN>.";
     return 0;
   }
-  pBrokerBinary = new CBrokerBinary(strTokenBroker);
+  pBrokerBinary = new CBrokerBinary(strAppIdBroker, strTokenBroker);
+#if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Binary";
+#endif
 
   pTelegramBot = new CTelegramBot(strTokenBot, true, 500, 4);
+#if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Telegram Bot";
+#endif
+
+  QObject::connect(
+      pBrokerBinary, &CBrokerBinary::closed
+    , &a, &QCoreApplication::quit);
 
   QObject::connect(
       pTelegramBot,  &Telegram::Bot::message
