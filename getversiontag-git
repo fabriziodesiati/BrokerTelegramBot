@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# /* ========================================================================
+#  * PLANETEK SPACE KIT
+#  * (C) 2016 by PLANETEK ITALIA
+#  *
+#  * Author: Fabrizio De Siati
+#  * Date  : 2016-03-23
+#  * ======================================================================== */
+
+VER=$(git rev-list --all --count)
+
+if [ -z "$VER" ];
+then
+	VER="NONE"
+elif [ x"$VER" = x"Unversioned directory" ];
+then
+	VER="0"
+fi
+
+echo $VER
+exit 0
