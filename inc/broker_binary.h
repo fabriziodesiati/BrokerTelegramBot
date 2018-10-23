@@ -35,12 +35,7 @@ class CBrokerBinary : public QObject
   Q_OBJECT
 public:
   static void DEBUG_APP(const QString&, const QString& = {});
-
-  enum class RequestType
-  {
-      kNOTHING
-    , kAUTHORIZE
-  };
+  static void WARNING_APP(const QString&, const QString& = {});
 
   /**
     * CBrokerBinary constructor
@@ -65,10 +60,11 @@ private:
   QString m_strToken;
   QUrl m_url;
   QWebSocket m_webSocket;
-  RequestType m_lastRequestType;
-  
-  QString m_RequestTypeStr(RequestType);
-  void m_SendSocketMessage(RequestType, const QString&);
+  QStringList m_historySendList;
+  QStringList m_historyRecvList;
+
+  QString m_SendSocketMessage(const QString&, const QMap<QString,QString>&);
+  void m_RecvSocketMessage(const QString&, QString&, QMap<QString, QString>&);
 };
 
 #endif // BROKER_BINARY_H
