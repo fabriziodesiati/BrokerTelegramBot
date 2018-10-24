@@ -27,7 +27,6 @@
  * ========================================================================== */
 #include "app_priv.h"
 #include <QCoreApplication>
-#include <QDebug>
 #include "QtTelegramBot/qttelegrambot.h"
 #include "broker_binary.h"
 #include "telegram_bot.h"

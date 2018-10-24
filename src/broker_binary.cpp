@@ -21,7 +21,6 @@
  * INCLUDES
  * ========================================================================== */
 #include "broker_binary.h"
-#include <QDebug>
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
@@ -51,38 +50,6 @@
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CBrokerBinary::DEBUG_APP(const QString& strFunc, const QString& strMsg)
-{
-#if BROKER_BINARY_DEBUG == 1
-  QDateTime dt = QDateTime::currentDateTime();
-  qDebug() << "========================= DEBUG ===============================";
-  qDebug() << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc;
-  if (!strMsg.isEmpty()) {
-    qDebug() << strMsg;
-  }
-  qDebug() << "===============================================================";
-#endif
-}
-
-/* ==========================================================================
- *        FUNCTION NAME: DEBUG_APP
- * FUNCTION DESCRIPTION: 
- *        CREATION DATE: 20181019
- *              AUTHORS: Fabrizio De Siati
- *           INTERFACES: None
- *         SUBORDINATES: None
- * ========================================================================== */
-void CBrokerBinary::WARNING_APP(const QString& strFunc, const QString& strMsg)
-{
-  QDateTime dt = QDateTime::currentDateTime();
-  qWarning() << "========================= WARNING ===========================";
-  qWarning() << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc;
-  if (!strMsg.isEmpty()) {
-    qWarning() << strMsg;
-  }
-  qWarning() << "=============================================================";
-}
-
 /* ==========================================================================
  *        FUNCTION NAME: CWdgGCPView
  * FUNCTION DESCRIPTION: constructor
@@ -99,7 +66,10 @@ CBrokerBinary::CBrokerBinary(const QString& app_id, const QString& token
 {
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
     .arg(m_strAppId));
-  DEBUG_APP("WebSocket server", m_url.toString());  
+  DEBUG_APP("WebSocket server", m_url.toString());
+  QDateTime dt = QDateTime::currentDateTime();
+  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK OPEN")
+    , m_url.toString());
   connect(&m_webSocket, &QWebSocket::connected   , this
     , &CBrokerBinary::slotOnSocketConnected);
   connect(&m_webSocket, &QWebSocket::disconnected, this
@@ -129,7 +99,7 @@ CBrokerBinary::~CBrokerBinary()
  * ========================================================================== */
 void CBrokerBinary::slotOnSocketConnected()
 {
-  DEBUG_APP("WebSocket connected");
+  DEBUG_APP("WebSocket connected", "");
   connect(&m_webSocket, &QWebSocket::textMessageReceived, this
     , &CBrokerBinary::slotOnMessageSocketReceived);
   // authorize
@@ -146,7 +116,6 @@ void CBrokerBinary::slotOnSocketConnected()
  * ========================================================================== */
 void CBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
 {
-  DEBUG_APP("Received message socket", strMsg);
   QString strMsgType = "";
   QMap<QString, QString> mapValues;
   // decode response
@@ -165,35 +134,35 @@ void CBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
  * ========================================================================== */
 void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
-  DEBUG_APP("Telegram message received", message.string);
+  QString strMsg = message.string;
+  DEBUG_APP("Telegram message received", strMsg);
+  QDateTime dt = QDateTime::currentDateTime();
+  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 TBOT RECV")
+    , strMsg);
 #if 0 //BROKER_BINARY_DEBUG == 1
   QDateTime dt = QDateTime::currentDateTime();
   qDebug() << "===============================================================";
   qDebug() << dt.toString();
   //qDebug() << "new message:" << message;
-  qDebug() << "       text:" << message.string;
-  QString strMessage = message.string;
+  qDebug() << "       text:" << strMsg;
   //GBP USD CALL 5 MIN WAIT CONFIRM
   //USD CHF CALL 5 MIN WAIT CONFIRM
   //GO
   //NO
   if (strMessage.endsWith("WAIT CONFIRM")) {
-    QString strChangeFrom = strMessage.mid(0,3);
-    QString strChangeTo   = strMessage.mid(4,3);
+    QString strChangeFrom = strMsg.mid(0,3);
+    QString strChangeTo   = strMsg.mid(4,3);
     qDebug() << "Broker attendi conferma " 
       << strChangeFrom << "->" << strChangeTo 
       << " ...";
   }
-  else if (strMessage == "GO") {
+  else if (strMsg == "GO") {
     qDebug() << "Broker SCOMMETTI ORA! ";
   }
-  else if (strMessage == "NO") {
+  else if (strMsg == "NO") {
     qDebug() << "Broker NON SCOMMETTERE! ";
   }
 #endif
-  /*if (bot && message.type == Telegram::Message::TextType) {
-    bot->sendMessage(message.from.id, message.string);
-  }*/
 }
 
 /* ==========================================================================
@@ -208,19 +177,22 @@ QString CBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   , const QMap<QString,QString>& mapValues)
 {
   QString strMsg;
-  // Prepare
+  // Prepare Send in JSon format
   if ("authorize" == strMsgType) {
     strMsg = QStringLiteral("{\"authorize\": \"%1\"}")
       .arg(mapValues.value("authorize"));
   }
   else {
-    WARNING_APP(QString("Send message socket %1").arg(strMsgType)
+    WARNING_APP(
+        QString("Send message socket %1").arg(strMsgType)
       , QString("%1 is unrecognized").arg(strMsgType));
   }
   // Send
   if (!strMsg.isEmpty()) {
     DEBUG_APP(QString("Send message socket %1").arg(strMsgType), strMsg);
-    m_historySendList.append(strMsg);
+    QDateTime dt = QDateTime::currentDateTime();
+    m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK SEND")
+      , strMsg);
     m_webSocket.sendTextMessage(strMsg);
   }
   return strMsg;
@@ -237,5 +209,74 @@ QString CBrokerBinary::m_SendSocketMessage(const QString& strMsgType
 void CBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   , QString& strMsgType, QMap<QString, QString>& mapValues)
 {
+  DEBUG_APP("Recv message socket", strMsg);
+  QDateTime dt = QDateTime::currentDateTime();
+  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK RECV")
+    , strMsg);
+  // Parsing JSON
+  QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
+  RETURN_IFW(doc.isNull(), );
+  RETURN_IFW(!doc.isObject(), );
+  QJsonObject msg = doc.object();
+  QJsonObject msg__error;
+  if (m_JSonObject(msg, "error", msg__error)) {    
+    // there is error on response
+    QString msg__error__code;
+    RETURN_IFW(!m_JSonValueStr(msg__error, "code"   , msg__error__code), );
+    QString msg__error__message;
+    RETURN_IFW(!m_JSonValueStr(msg__error, "message", msg__error__message), );
+    WARNING_APP("Binary return error", QString("code [%1] error[%2]")
+      .arg(msg__error__code).arg(msg__error__message));
+    return;
+  }
+  /* DECODE RESPONSE based on msg_type */
+  RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType), );
+  if ("authorize" == strMsgType) 
+  { /* First message to authorize application */
+    QJsonObject msg__authorize;
+    RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize), );
+    QString msg__authorize__balance;
+    RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
+      , msg__authorize__balance), );
+    INFO_APP("balance:", msg__authorize__balance);
+    mapValues.insert("balance", msg__authorize__balance);
+  }
+}
 
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonObject
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181023
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CBrokerBinary::m_JSonObject(const QJsonObject& qJsonObjectParent
+  , const QString& strName, QJsonObject& qJsonObjectRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  RETURN_IF(!qJsonValue.isObject(), false);
+  qJsonObjectRet = qJsonValue.toObject();
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonObject
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181023
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CBrokerBinary::m_JSonValueStr(const QJsonObject& qJsonObjectParent
+  , const QString& strName, QString& strValueRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  RETURN_IF(!qJsonValue.isString(), false);
+  strValueRet = qJsonValue.toString();
+  return true;
 }
