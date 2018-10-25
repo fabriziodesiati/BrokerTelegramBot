@@ -25,12 +25,11 @@
 /* ==========================================================================
  * INCLUDES
  * ========================================================================== */
-#include "app_priv.h"
 #include <QCoreApplication>
 #include "QtTelegramBot/qttelegrambot.h"
+#include "configuration.h"
 #include "broker_binary.h"
 #include "telegram_bot.h"
-
 
 /* ==========================================================================
  * CUSTOMIZABLE MODULE PRIVATE MACROS

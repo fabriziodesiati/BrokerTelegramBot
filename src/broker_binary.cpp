@@ -21,6 +21,7 @@
  * INCLUDES
  * ========================================================================== */
 #include "broker_binary.h"
+#include "configuration.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
@@ -43,15 +44,7 @@
  * STATIC MEMBERS
  * ========================================================================== */
 /* ==========================================================================
- *        FUNCTION NAME: DEBUG_APP
- * FUNCTION DESCRIPTION: 
- *        CREATION DATE: 20181019
- *              AUTHORS: Fabrizio De Siati
- *           INTERFACES: None
- *         SUBORDINATES: None
- * ========================================================================== */
-/* ==========================================================================
- *        FUNCTION NAME: CWdgGCPView
+ *        FUNCTION NAME: CBrokerBinary
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181019
  *              AUTHORS: Fabrizio De Siati

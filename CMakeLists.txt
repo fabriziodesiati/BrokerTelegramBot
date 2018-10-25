@@ -93,7 +93,8 @@ set(LIBDIRS
 #link_directories(${LIBDIRS})
 
 # Setup variable containing source files
-set(SOURCES  
+set(SOURCES
+  #QTTELEGRAMBOT
   ${QTTELEGRAMBOT_PATH}/qttelegrambot.cpp
   ${QTTELEGRAMBOT_PATH}/networking.cpp
   ${QTTELEGRAMBOT_PATH}/types/message.cpp
@@ -109,16 +110,16 @@ set(SOURCES
   ${QTTELEGRAMBOT_PATH}/types/contact.cpp
   ${QTTELEGRAMBOT_PATH}/types/location.cpp
   ${QTTELEGRAMBOT_PATH}/types/callbackquery.cpp
-
+  #FDS
+  ${SRC_PATH}/configuration.cpp
   ${SRC_PATH}/broker_binary.cpp
-
   ${SRC_PATH}/telegram_bot.cpp
-
   ${SRC_PATH}/main.cpp
 )
 
 # Setup variable containing include files
 set(INCLUDES
+  #QTTELEGRAMBOT
   ${QTTELEGRAMBOT_PATH}/qttelegrambot.h
   ${QTTELEGRAMBOT_PATH}/networking.h
   ${QTTELEGRAMBOT_PATH}/types/message.h
@@ -141,12 +142,11 @@ set(INCLUDES
   ${QTTELEGRAMBOT_PATH}/types/callbackquery.h
   ${QTTELEGRAMBOT_PATH}/types/reply/inlinekeyboardmarkup.h
   ${QTTELEGRAMBOT_PATH}/types/reply/replykeyboardremove.h
-
-  ${INC_PATH}/broker_binary.h
-
-  ${INC_PATH}/telegram_bot.h
-
+  #FDS
   ${INC_PATH}/app_priv.h
+  ${INC_PATH}/configuration.h
+  ${INC_PATH}/broker_binary.h
+  ${INC_PATH}/telegram_bot.h  
 )
 
 # Setup include installation directory
