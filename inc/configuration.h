@@ -19,6 +19,7 @@
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_priv.h"
+#include <QtCore>
 
 /* ==========================================================================
  * MACROS
@@ -37,14 +38,23 @@ public:
   static const CConfiguration& GetInstance();
   
   /**
-    * CConfiguration
-    * @param app_id
-    * @param url
-    * @param parent
-    */
+   * CConfiguration constructor
+   */
   explicit CConfiguration();
   ~CConfiguration();
-private:  
+
+  /**
+   * Load congiguration gived cfg file path
+   */
+  bool load(const QString&);
+
+  /**
+   * Get value for given cfg key, if doesn't exist retrieves empty string
+   */
+  QString get(const QString&);
+
+private:
+  QMap<QString, QString> m_mapKeys;
 };
 
 #endif // CONFIGURATION_H

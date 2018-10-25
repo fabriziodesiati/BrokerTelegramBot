@@ -36,11 +36,11 @@ class CBrokerBinary : public QObject
 public:
 
   /**
-    * CBrokerBinary constructor
-    * @param app_id
-    * @param url
-    * @param parent
-    */
+   * CBrokerBinary constructor
+   * @param app_id
+   * @param url
+   * @param parent
+   */
   explicit CBrokerBinary(const QString& app_id, const QString& token
     , QObject* parent = 0);
   ~CBrokerBinary();
