@@ -35,7 +35,7 @@ public:
    * Get instance for this singleton.
    * @return a reference to instance.
    */
-  static const CAppConfiguration& GetInstance();
+  static CAppConfiguration& GetInstance();
   
   /**
    * CAppConfiguration constructor
@@ -51,7 +51,7 @@ public:
   /**
    * Get value for given cfg key, if doesn't exist retrieves empty string
    */
-  QString get(const QString&);
+  QString get(const QString&, const QString& = QString());
 
 private:
   QMap<QString, QString> m_mapKeys;

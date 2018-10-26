@@ -52,6 +52,14 @@ cd %BUIDIR%
 for %%G in (%DEPLOY_EXE%) do (
   echo --- ...copy %%G.exe
   copy %BUIDIR%\%%G\%TYPE%\%%G.exe %RELDIR%\. 
+  if exist "C:\Program Files\%%G\etc" (
+    echo --- ...etc
+    xcopy "C:\Program Files\%%G\etc"                                          %RELDIR%\etc /s /i /y
+  )
+  if exist "C:\Program Files\%%G\db" (
+    echo --- ...db
+    xcopy "C:\Program Files\%%G\db"                                           %RELDIR%\db /s /i /y
+  )
   
 )
 cd  %PREV_DIR%

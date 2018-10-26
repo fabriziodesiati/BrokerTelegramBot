@@ -1,5 +1,5 @@
 /* ==========================================================================
- * MODULE FILE NAME: main.cpp
+ * MODULE FILE NAME: app_main.cpp
  *      MODULE TYPE: application entry point
  *
  *         FUNCTION: Application Entry point.
@@ -42,8 +42,6 @@
 /* ==========================================================================
  * STATIC VARIABLES FOR MODULE
  * ========================================================================== */
-CAppBrokerBinary* pBrokerBinary;
-CAppTelegramBot* pTelegramBot;
 
 /* ==========================================================================
  * MODULE PRIVATE TYPE DECLARATIONS
@@ -63,74 +61,65 @@ CAppTelegramBot* pTelegramBot;
 int main(int argc,char* argv[])
 {
   QCoreApplication a(argc, argv);
+  QString strCfgFilePath = "./etc/BrokerTelegramBot_default.cfg";
+  QString strDbFilePath = "./db/BrokerTelegramBot.sqlite";
   QString strAppIdBroker;
   QString strTokenBroker;
-  QString strTokenBot;  
+  QString strTokenBot;
+  /* Parse arguments */
+  QMap<QString,QString*> mapArgs = {
+      {"--cfg"          , &strCfgFilePath}
+    , {"--db"           , &strDbFilePath }
+    , {"--app_id-broker", &strAppIdBroker}
+    , {"--token-broker" , &strTokenBroker}
+    , {"--token-bot"    , &strTokenBot   }
+    
+  };
   for (auto j = 0; j < argc; ++j) {
     QString strArgName = argv[j];
-    if (strArgName == "--app_id-broker") {
+    if (mapArgs.contains(strArgName)) {
       const char* pStr = argv[++j];
-      if (nullptr == pStr) {
-        qWarning() << "--app_id-broker requires a app_id identifier.";
-        return 0;
-      }
-      else
-      {
-        strAppIdBroker = pStr;
-      }
-    }
-    else if (strArgName == "--token-broker") {
-      const char* pStr = argv[++j];
-      if (nullptr == pStr) {
-        qWarning() << "--token-broker requires a token identifier.";
-        return 0;
-      }
-      else
-      {
-        strTokenBroker = pStr;
-      }
-    }
-    else if (strArgName == "--token-bot") {
-      const char* pStr = argv[++j];
-      if (nullptr == pStr) {
-        qWarning() << "--token-bot requires a token identifier.";
-        return 0;
-      }
-      else
-      {
-        strTokenBot = pStr;
-      }
+      CATCH_ABORT(nullptr == pStr
+        , QString("arg %1 requires a value").arg(strArgName));
+      *mapArgs.value(strArgName) = pStr;
     }
   }
-  if (strAppIdBroker.isEmpty()) {
-    qWarning() << "Required --tokenbroker <TOKEN>.";
-    return 0;
+  /* Load configuration if exists */
+  if (CAppConfiguration::GetInstance().load(strCfgFilePath)) {
+    QMap<QString,QString*> mapCfg = {
+        {"db.database"  , &strDbFilePath  }
+      , {"app_id-broker", &strAppIdBroker }
+      , {"token-broker" , &strTokenBroker }
+      , {"token-bot"    , &strTokenBot    }
+    };
+    for(auto strKeyName: mapCfg.keys()) {
+      QString* pKeyValue = mapCfg.value(strKeyName);
+      *pKeyValue = CAppConfiguration::GetInstance().get(strKeyName, *pKeyValue);
+    }
   }
-  if (strTokenBroker.isEmpty()) {
-    qWarning() << "Required --tokenbroker <TOKEN>.";
-    return 0;
-  }
-  if (strTokenBot.isEmpty()) {
-    qWarning() << "Required --tokenbot <TOKEN>.";
-    return 0;
-  }
-  pBrokerBinary = new CAppBrokerBinary(strAppIdBroker, strTokenBroker);
+  CATCH_ABORT(strAppIdBroker.isEmpty(), "Required --app_id-broker <APP_ID>");
+  CATCH_ABORT(strTokenBroker.isEmpty(), "Required --token-broker <TOKEN>");
+  CATCH_ABORT(strTokenBot.isEmpty()   , "Required --token-bot <TOKEN>");
+
+  CAppBrokerBinary* pAppBrokerBinary = 
+    new(std::nothrow) CAppBrokerBinary(strAppIdBroker, strTokenBroker);
 #if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Binary";
 #endif
 
-  pTelegramBot = new CAppTelegramBot(strTokenBot, true, 500, 4);
+  CAppTelegramBot* pAppTelegramBot =
+    new(std::nothrow) CAppTelegramBot(strTokenBot, true, 500, 4);
 #if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Telegram Bot";
 #endif
 
   QObject::connect(
-      pBrokerBinary, &CAppBrokerBinary::closed
+      pAppBrokerBinary, &CAppBrokerBinary::closed
     , &a, &QCoreApplication::quit);
 
   QObject::connect(
-      pTelegramBot,  &Telegram::Bot::message
-    , pBrokerBinary, &CAppBrokerBinary::slotOnMessageTelegramBot);  
+      pAppTelegramBot,  &Telegram::Bot::message
+    , pAppBrokerBinary, &CAppBrokerBinary::slotOnMessageTelegramBot);  
   
   return a.exec();
 }

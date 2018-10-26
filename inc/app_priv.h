@@ -20,6 +20,7 @@
  * code configuration. The HAVE_CONFIG_H macro is set into the CMakeLists.txt
  * project file.
  * ========================================================================== */
+#include <iostream>
 #ifdef HAVE_CONFIG_H
 # include "BrokerTelegramBot_config.h"
 #endif
@@ -36,10 +37,10 @@
 #define DEBUG_APP(strFunc,strMsg)\
   do { \
   QDateTime dt = QDateTime::currentDateTime(); \
-  qDebug()   << "=========================== DEBUG ========================="; \
-  qDebug()   << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
-  qDebug()   << strMsg; \
-  qDebug()   << "==========================================================="; \
+  qDebug()    << "=========================== DEBUG ========================"; \
+  qDebug()    << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
+  qDebug()    << strMsg; \
+  qDebug()    << "=========================================================="; \
   } while (false)
 
 /**
@@ -48,10 +49,10 @@
 #define INFO_APP(strFunc,strMsg)\
   do { \
   QDateTime dt = QDateTime::currentDateTime(); \
-  qInfo()    << "=========================== INFO =========================="; \
-  qInfo()    << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
-  qInfo()    << strMsg; \
-  qInfo()    << "==========================================================="; \
+  qInfo()     << "=========================== INFO ========================="; \
+  qInfo()     << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
+  qInfo()     << strMsg; \
+  qInfo()     << "=========================================================="; \
   } while (false)
 
 /**
@@ -60,11 +61,53 @@
 #define WARNING_APP(strFunc,strMsg)\
   do { \
   QDateTime dt = QDateTime::currentDateTime(); \
-  qWarning() << "=========================== WARNING ======================="; \
-  qWarning() << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
-  qWarning() << strMsg; \
-  qWarning() << "==========================================================="; \
+  qWarning()  << "=========================== WARNING ======================"; \
+  qWarning()  << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
+  qWarning()  << strMsg; \
+  qWarning()  << "=========================================================="; \
   } while (false)
+
+/**
+ * Calls the message handler with the critical function/message.
+ */
+#define CRITICAL_APP(strFunc,strMsg)\
+  do { \
+  QDateTime dt = QDateTime::currentDateTime(); \
+  qCritical() << "=========================== CRITICAL ====================="; \
+  qCritical() << dt.toString("yyyy-MM-dd hh:mm:ss.zzz000") << strFunc; \
+  qCritical() << strMsg; \
+  qCritical() << "=========================================================="; \
+  } while (false)
+
+/**
+ * Macro for catching bugs.
+ */
+#define CATCH_BUG(cond,msg)\
+  do { \
+  if (cond) { \
+    QString strFunc = QString("DETECTED BUG %1 @%2").arg(THIS).arg(__LINE__);  \
+    QString strMsg = QString("%1 (C=%2)").arg(#msg).arg(#cond); \
+    CRITICAL_APP(strFunc,strMsg); \
+    do { \
+      std::cout << '\n' << "Press a key to continue..."; \
+    } while (std::cin.get() != '\n'); \
+    ::exit(0); \
+  }} while (false)
+
+/**
+ * Macro for aborting instantaneously.
+ */
+#define CATCH_ABORT(cond,msg)\
+  do { \
+  if (cond) { \
+    QString strFunc = QString("DETECTED ABORT %1 @%2").arg(THIS).arg(__LINE__);\
+    QString strMsg = QString("%1 (C=%2)").arg(#msg).arg(#cond); \
+    CRITICAL_APP(strFunc,strMsg); \
+    do { \
+      std::cout << '\n' << "Press a key to continue..."; \
+    } while (std::cin.get() != '\n'); \
+    ::exit(0); \
+  }} while (false)
 
 /**
  * Use this macro for early-exit on input parameter validation.

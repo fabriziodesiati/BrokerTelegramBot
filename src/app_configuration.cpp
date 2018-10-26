@@ -50,7 +50,7 @@
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-const CAppConfiguration& CAppConfiguration::GetInstance()
+CAppConfiguration& CAppConfiguration::GetInstance()
 {
   static CAppConfiguration configuration;
   return configuration;
@@ -117,8 +117,8 @@ bool CAppConfiguration::load(const QString& strFileCfgPath)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-QString CAppConfiguration::get(const QString& strKey)
+QString CAppConfiguration::get(const QString& strKey, const QString& strDefault)
 {
-  return m_mapKeys.value(strKey);
+  return m_mapKeys.value(strKey, strDefault);
 }
 
