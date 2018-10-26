@@ -1,25 +1,25 @@
 /* ==========================================================================
- *   INCLUDE FILE NAME: telegram_bot.h
- * INCLUDE DESCRIPTION: declares the CTelegramBot class.
- *       CREATION DATE: 20181019
+ *   INCLUDE FILE NAME: app_configuration.h
+ * INCLUDE DESCRIPTION: declares the CAppConfiguration class.
+ *       CREATION DATE: 20181025
  *             AUTHORS: Fabrizio De Siati
  *        DESIGN ISSUE: None. 
  *
  *             HISTORY: See table below.
  * 
- * 19-Oct-2018 | Fabrizio De Siati | 0.0 |
+ * 25-Oct-2018 | Fabrizio De Siati | 0.0 |
  * Initial creation of this file.
  * 
  * ========================================================================== */
 
-#ifndef TELEGRAM_BOT_H
-#define TELEGRAM_BOT_H
+#ifndef APP_CONFIGURATION_H
+#define APP_CONFIGURATION_H
 
 /* ==========================================================================
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_priv.h"
-#include "QtTelegramBot/qttelegrambot.h"
+#include <QtCore>
 
 /* ==========================================================================
  * MACROS
@@ -28,24 +28,33 @@
 /* ==========================================================================
  * CLASS DECLARATION
  * ========================================================================== */
-class CTelegramBot : public Telegram::Bot
+class CAppConfiguration
 {
 public:
   /**
-   * CTelegramBot constructor
-   * @param token
-   * @param updates - enable automatic update polling
-   * @param updateInterval - interval between update polls in msec
-   * @param pollingTimeout - timeout in sec
-   * @param parent
+   * Get instance for this singleton.
+   * @return a reference to instance.
    */
-  explicit CTelegramBot(QString token, bool updates = false
-    , quint32 updateInterval = 1000, quint32 pollingTimeout = 0
-    , QObject *parent = 0);
-  ~CTelegramBot();
+  static const CAppConfiguration& GetInstance();
+  
+  /**
+   * CAppConfiguration constructor
+   */
+  explicit CAppConfiguration();
+  ~CAppConfiguration();
+
+  /**
+   * Load congiguration gived cfg file path
+   */
+  bool load(const QString&);
+
+  /**
+   * Get value for given cfg key, if doesn't exist retrieves empty string
+   */
+  QString get(const QString&);
 
 private:
-  QString m_strToken;
+  QMap<QString, QString> m_mapKeys;
 };
 
-#endif // TELEGRAM_BOT_H
+#endif // APP_CONFIGURATION_H

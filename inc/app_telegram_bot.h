@@ -1,25 +1,25 @@
 /* ==========================================================================
- *   INCLUDE FILE NAME: configuration.h
- * INCLUDE DESCRIPTION: declares the CConfiguration class.
- *       CREATION DATE: 20181025
+ *   INCLUDE FILE NAME: app_telegram_bot.h
+ * INCLUDE DESCRIPTION: declares the CAppTelegramBot class.
+ *       CREATION DATE: 20181019
  *             AUTHORS: Fabrizio De Siati
  *        DESIGN ISSUE: None. 
  *
  *             HISTORY: See table below.
  * 
- * 25-Oct-2018 | Fabrizio De Siati | 0.0 |
+ * 19-Oct-2018 | Fabrizio De Siati | 0.0 |
  * Initial creation of this file.
  * 
  * ========================================================================== */
 
-#ifndef CONFIGURATION_H
-#define CONFIGURATION_H
+#ifndef APP_TELEGRAM_BOT_H
+#define APP_TELEGRAM_BOT_H
 
 /* ==========================================================================
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_priv.h"
-#include <QtCore>
+#include "QtTelegramBot/qttelegrambot.h"
 
 /* ==========================================================================
  * MACROS
@@ -28,33 +28,24 @@
 /* ==========================================================================
  * CLASS DECLARATION
  * ========================================================================== */
-class CConfiguration
+class CAppTelegramBot : public Telegram::Bot
 {
 public:
   /**
-   * Get instance for this singleton.
-   * @return a reference to instance.
+   * CAppTelegramBot constructor
+   * @param token
+   * @param updates - enable automatic update polling
+   * @param updateInterval - interval between update polls in msec
+   * @param pollingTimeout - timeout in sec
+   * @param parent
    */
-  static const CConfiguration& GetInstance();
-  
-  /**
-   * CConfiguration constructor
-   */
-  explicit CConfiguration();
-  ~CConfiguration();
-
-  /**
-   * Load congiguration gived cfg file path
-   */
-  bool load(const QString&);
-
-  /**
-   * Get value for given cfg key, if doesn't exist retrieves empty string
-   */
-  QString get(const QString&);
+  explicit CAppTelegramBot(QString token, bool updates = false
+    , quint32 updateInterval = 1000, quint32 pollingTimeout = 0
+    , QObject *parent = 0);
+  ~CAppTelegramBot();
 
 private:
-  QMap<QString, QString> m_mapKeys;
+  QString m_strToken;
 };
 
-#endif // CONFIGURATION_H
+#endif // APP_TELEGRAM_BOT_H

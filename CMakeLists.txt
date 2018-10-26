@@ -110,11 +110,11 @@ set(SOURCES
   ${QTTELEGRAMBOT_PATH}/types/contact.cpp
   ${QTTELEGRAMBOT_PATH}/types/location.cpp
   ${QTTELEGRAMBOT_PATH}/types/callbackquery.cpp
-  #FDS
-  ${SRC_PATH}/configuration.cpp
-  ${SRC_PATH}/broker_binary.cpp
-  ${SRC_PATH}/telegram_bot.cpp
-  ${SRC_PATH}/main.cpp
+  #APP
+  ${SRC_PATH}/app_main.cpp
+  ${SRC_PATH}/app_configuration.cpp
+  ${SRC_PATH}/app_broker_binary.cpp
+  ${SRC_PATH}/app_telegram_bot.cpp
 )
 
 # Setup variable containing include files
@@ -142,11 +142,11 @@ set(INCLUDES
   ${QTTELEGRAMBOT_PATH}/types/callbackquery.h
   ${QTTELEGRAMBOT_PATH}/types/reply/inlinekeyboardmarkup.h
   ${QTTELEGRAMBOT_PATH}/types/reply/replykeyboardremove.h
-  #FDS
+  #APP
   ${INC_PATH}/app_priv.h
-  ${INC_PATH}/configuration.h
-  ${INC_PATH}/broker_binary.h
-  ${INC_PATH}/telegram_bot.h  
+  ${INC_PATH}/app_configuration.h
+  ${INC_PATH}/app_broker_binary.h
+  ${INC_PATH}/app_telegram_bot.h
 )
 
 # Setup include installation directory

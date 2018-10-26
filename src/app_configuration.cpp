@@ -1,13 +1,13 @@
 /* ==========================================================================
- * MODULE FILE NAME: configuration.cpp
+ * MODULE FILE NAME: app_configuration.cpp
  *      MODULE TYPE: class definition
  *
- *         FUNCTION: Define the CConfiguration class.
+ *         FUNCTION: Define the CAppConfiguration class.
  *          PURPOSE: 
  *    CREATION DATE: 20181025
  *          AUTHORS: Fabrizio De Siati
  *     DESIGN ISSUE: None
- *       INTERFACES: CConfiguration
+ *       INTERFACES: CAppConfiguration
  *     SUBORDINATES: None.
  * 
  *          HISTORY: See table below. 
@@ -20,12 +20,12 @@
 /* ==========================================================================
  * INCLUDES
  * ========================================================================== */
-#include "configuration.h"
+#include "app_configuration.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define CONFIGURATION_DEBUG 0
+#define APP_CONFIGURATION_DEBUG 0
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -50,33 +50,33 @@
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-const CConfiguration& CConfiguration::GetInstance()
+const CAppConfiguration& CAppConfiguration::GetInstance()
 {
-  static CConfiguration configuration;
+  static CAppConfiguration configuration;
   return configuration;
 }
  
 /* ==========================================================================
- *        FUNCTION NAME: CConfiguration
+ *        FUNCTION NAME: CAppConfiguration
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181025
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CConfiguration::CConfiguration()
+CAppConfiguration::CAppConfiguration()
 {
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: ~CConfiguration
+ *        FUNCTION NAME: ~CAppConfiguration
  * FUNCTION DESCRIPTION: destructor
  *        CREATION DATE: 20181025
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CConfiguration::~CConfiguration()
+CAppConfiguration::~CAppConfiguration()
 {
 }
 
@@ -88,7 +88,7 @@ CConfiguration::~CConfiguration()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CConfiguration::load(const QString& strFileCfgPath)
+bool CAppConfiguration::load(const QString& strFileCfgPath)
 {
   // empty map
   m_mapKeys.clear();
@@ -117,7 +117,7 @@ bool CConfiguration::load(const QString& strFileCfgPath)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-QString CConfiguration::get(const QString& strKey)
+QString CAppConfiguration::get(const QString& strKey)
 {
   return m_mapKeys.value(strKey);
 }

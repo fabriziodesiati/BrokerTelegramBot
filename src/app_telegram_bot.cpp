@@ -1,13 +1,13 @@
 /* ==========================================================================
- * MODULE FILE NAME: telegram_bot.cpp
+ * MODULE FILE NAME: app_telegram_bot.cpp
  *      MODULE TYPE: class definition
  *
- *         FUNCTION: Define the CTelegramBot class.
+ *         FUNCTION: Define the CAppTelegramBot class.
  *          PURPOSE: 
  *    CREATION DATE: 20181019
  *          AUTHORS: Fabrizio De Siati
  *     DESIGN ISSUE: None
- *       INTERFACES: CTelegramBot
+ *       INTERFACES: CAppTelegramBot
  *     SUBORDINATES: None.
  * 
  *          HISTORY: See table below. 
@@ -20,12 +20,12 @@
 /* ==========================================================================
  * INCLUDES
  * ========================================================================== */
-#include "telegram_bot.h"
+#include "app_telegram_bot.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define TELEGRAM_BOT_DEBUG 1
+#define APP_TELEGRAM_BOT_DEBUG 1
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -43,14 +43,14 @@
  * STATIC MEMBERS
  * ========================================================================== */
 /* ==========================================================================
- *        FUNCTION NAME: CTelegramBot
+ *        FUNCTION NAME: CAppTelegramBot
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181019
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CTelegramBot::CTelegramBot(QString token, bool updates, quint32 updateInterval
+CAppTelegramBot::CAppTelegramBot(QString token, bool updates, quint32 updateInterval
   , quint32 pollingTimeout, QObject *parent)
 : Telegram::Bot { token, updates, updateInterval, pollingTimeout, parent }
 , m_strToken    { token                                                  }
@@ -58,13 +58,13 @@ CTelegramBot::CTelegramBot(QString token, bool updates, quint32 updateInterval
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: ~CTelegramBot
+ *        FUNCTION NAME: ~CAppTelegramBot
  * FUNCTION DESCRIPTION: destructor
  *        CREATION DATE: 20181019
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CTelegramBot::~CTelegramBot()
+CAppTelegramBot::~CAppTelegramBot()
 {
 }

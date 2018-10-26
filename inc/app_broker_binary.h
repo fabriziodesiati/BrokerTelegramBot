@@ -1,6 +1,6 @@
 /* ==========================================================================
- *   INCLUDE FILE NAME: broker_binary.h
- * INCLUDE DESCRIPTION: declares the CBrokerBinary class.
+ *   INCLUDE FILE NAME: app_broker_binary.h
+ * INCLUDE DESCRIPTION: declares the CAppBrokerBinary class.
  *       CREATION DATE: 20181019
  *             AUTHORS: Fabrizio De Siati
  *        DESIGN ISSUE: None. 
@@ -12,8 +12,8 @@
  * 
  * ========================================================================== */
 
-#ifndef BROKER_BINARY_H
-#define BROKER_BINARY_H
+#ifndef APP_BROKER_BINARY_H
+#define APP_BROKER_BINARY_H
 
 /* ==========================================================================
  * INCLUDE: Basic include file.
@@ -30,20 +30,20 @@
 /* ==========================================================================
  * CLASS DECLARATION
  * ========================================================================== */
-class CBrokerBinary : public QObject
+class CAppBrokerBinary : public QObject
 {
   Q_OBJECT
 public:
 
   /**
-   * CBrokerBinary constructor
+   * CAppBrokerBinary constructor
    * @param app_id
    * @param url
    * @param parent
    */
-  explicit CBrokerBinary(const QString& app_id, const QString& token
+  explicit CAppBrokerBinary(const QString& app_id, const QString& token
     , QObject* parent = 0);
-  ~CBrokerBinary();
+  ~CAppBrokerBinary();
 
 signals:
   void closed();
@@ -68,4 +68,4 @@ private:
 
 };
 
-#endif // BROKER_BINARY_H
+#endif // APP_BROKER_BINARY_H

@@ -27,9 +27,9 @@
  * ========================================================================== */
 #include <QCoreApplication>
 #include "QtTelegramBot/qttelegrambot.h"
-#include "configuration.h"
-#include "broker_binary.h"
-#include "telegram_bot.h"
+#include "app_configuration.h"
+#include "app_broker_binary.h"
+#include "app_telegram_bot.h"
 
 /* ==========================================================================
  * CUSTOMIZABLE MODULE PRIVATE MACROS
@@ -42,8 +42,8 @@
 /* ==========================================================================
  * STATIC VARIABLES FOR MODULE
  * ========================================================================== */
-CBrokerBinary* pBrokerBinary;
-CTelegramBot* pTelegramBot;
+CAppBrokerBinary* pBrokerBinary;
+CAppTelegramBot* pTelegramBot;
 
 /* ==========================================================================
  * MODULE PRIVATE TYPE DECLARATIONS
@@ -114,23 +114,23 @@ int main(int argc,char* argv[])
     qWarning() << "Required --tokenbot <TOKEN>.";
     return 0;
   }
-  pBrokerBinary = new CBrokerBinary(strAppIdBroker, strTokenBroker);
+  pBrokerBinary = new CAppBrokerBinary(strAppIdBroker, strTokenBroker);
 #if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Binary";
 #endif
 
-  pTelegramBot = new CTelegramBot(strTokenBot, true, 500, 4);
+  pTelegramBot = new CAppTelegramBot(strTokenBot, true, 500, 4);
 #if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Telegram Bot";
 #endif
 
   QObject::connect(
-      pBrokerBinary, &CBrokerBinary::closed
+      pBrokerBinary, &CAppBrokerBinary::closed
     , &a, &QCoreApplication::quit);
 
   QObject::connect(
       pTelegramBot,  &Telegram::Bot::message
-    , pBrokerBinary, &CBrokerBinary::slotOnMessageTelegramBot);  
+    , pBrokerBinary, &CAppBrokerBinary::slotOnMessageTelegramBot);  
   
   return a.exec();
 }

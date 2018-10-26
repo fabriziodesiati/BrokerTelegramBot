@@ -1,13 +1,13 @@
 /* ==========================================================================
- * MODULE FILE NAME: broker_binary.cpp
+ * MODULE FILE NAME: app_broker_binary.cpp
  *      MODULE TYPE: class definition
  *
- *         FUNCTION: Define the CBrokerBinary class.
+ *         FUNCTION: Define the CAppBrokerBinary class.
  *          PURPOSE: 
  *    CREATION DATE: 20181019
  *          AUTHORS: Fabrizio De Siati
  *     DESIGN ISSUE: None
- *       INTERFACES: CBrokerBinary
+ *       INTERFACES: CAppBrokerBinary
  *     SUBORDINATES: None.
  * 
  *          HISTORY: See table below. 
@@ -20,13 +20,12 @@
 /* ==========================================================================
  * INCLUDES
  * ========================================================================== */
-#include "broker_binary.h"
-#include "configuration.h"
+#include "app_broker_binary.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define BROKER_BINARY_DEBUG 1
+#define APP_BROKER_BINARY_DEBUG 1
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -44,14 +43,14 @@
  * STATIC MEMBERS
  * ========================================================================== */
 /* ==========================================================================
- *        FUNCTION NAME: CBrokerBinary
+ *        FUNCTION NAME: CAppBrokerBinary
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181019
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CBrokerBinary::CBrokerBinary(const QString& app_id, const QString& token
+CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   , QObject *parent)
 : QObject    { parent }
 , m_strAppId { app_id }
@@ -64,21 +63,21 @@ CBrokerBinary::CBrokerBinary(const QString& app_id, const QString& token
   m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK OPEN")
     , m_url.toString());
   connect(&m_webSocket, &QWebSocket::connected   , this
-    , &CBrokerBinary::slotOnSocketConnected);
+    , &CAppBrokerBinary::slotOnSocketConnected);
   connect(&m_webSocket, &QWebSocket::disconnected, this
-    , &CBrokerBinary::closed);
+    , &CAppBrokerBinary::closed);
   m_webSocket.open(QUrl(m_url));
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: ~CBrokerBinary
+ *        FUNCTION NAME: ~CAppBrokerBinary
  * FUNCTION DESCRIPTION: destructor
  *        CREATION DATE: 20181019
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CBrokerBinary::~CBrokerBinary()
+CAppBrokerBinary::~CAppBrokerBinary()
 {
 }
 
@@ -90,11 +89,11 @@ CBrokerBinary::~CBrokerBinary()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CBrokerBinary::slotOnSocketConnected()
+void CAppBrokerBinary::slotOnSocketConnected()
 {
   DEBUG_APP("WebSocket connected", "");
   connect(&m_webSocket, &QWebSocket::textMessageReceived, this
-    , &CBrokerBinary::slotOnMessageSocketReceived);
+    , &CAppBrokerBinary::slotOnMessageSocketReceived);
   // authorize
   m_SendSocketMessage("authorize", { {"authorize", m_strToken} });  
 }
@@ -107,7 +106,7 @@ void CBrokerBinary::slotOnSocketConnected()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
+void CAppBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
 {
   QString strMsgType = "";
   QMap<QString, QString> mapValues;
@@ -125,14 +124,14 @@ void CBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
+void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
   QString strMsg = message.string;
   DEBUG_APP("Telegram message received", strMsg);
   QDateTime dt = QDateTime::currentDateTime();
   m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 TBOT RECV")
     , strMsg);
-#if 0 //BROKER_BINARY_DEBUG == 1
+#if 0 //APP_BROKER_BINARY_DEBUG == 1
   QDateTime dt = QDateTime::currentDateTime();
   qDebug() << "===============================================================";
   qDebug() << dt.toString();
@@ -166,7 +165,7 @@ void CBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-QString CBrokerBinary::m_SendSocketMessage(const QString& strMsgType
+QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   , const QMap<QString,QString>& mapValues)
 {
   QString strMsg;
@@ -199,7 +198,7 @@ QString CBrokerBinary::m_SendSocketMessage(const QString& strMsgType
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CBrokerBinary::m_RecvSocketMessage(const QString& strMsg
+void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   , QString& strMsgType, QMap<QString, QString>& mapValues)
 {
   DEBUG_APP("Recv message socket", strMsg);
@@ -244,7 +243,7 @@ void CBrokerBinary::m_RecvSocketMessage(const QString& strMsg
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CBrokerBinary::m_JSonObject(const QJsonObject& qJsonObjectParent
+bool CAppBrokerBinary::m_JSonObject(const QJsonObject& qJsonObjectParent
   , const QString& strName, QJsonObject& qJsonObjectRet)
 {
   RETURN_IF(qJsonObjectParent.isEmpty(), false);
@@ -263,7 +262,7 @@ bool CBrokerBinary::m_JSonObject(const QJsonObject& qJsonObjectParent
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CBrokerBinary::m_JSonValueStr(const QJsonObject& qJsonObjectParent
+bool CAppBrokerBinary::m_JSonValueStr(const QJsonObject& qJsonObjectParent
   , const QString& strName, QString& strValueRet)
 {
   RETURN_IF(qJsonObjectParent.isEmpty(), false);
