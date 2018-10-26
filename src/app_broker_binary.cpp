@@ -207,29 +207,34 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     , strMsg);
   // Parsing JSON
   QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
-  RETURN_IFW(doc.isNull(), );
-  RETURN_IFW(!doc.isObject(), );
+  RETURN_IFW(doc.isNull(), "JsonDocument is null", );
+  RETURN_IFW(!doc.isObject(), "JsonObject is null", );
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
     QString msg__error__code;
-    RETURN_IFW(!m_JSonValueStr(msg__error, "code"   , msg__error__code), );
+    RETURN_IFW(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
+      , "JSonValue 'code' doesn't exist", );
     QString msg__error__message;
-    RETURN_IFW(!m_JSonValueStr(msg__error, "message", msg__error__message), );
+    RETURN_IFW(!m_JSonValueStr(msg__error, "message", msg__error__message)
+      , "JSonValue 'message' doesn't exist", );
     WARNING_APP("Binary return error", QString("code [%1] error[%2]")
       .arg(msg__error__code).arg(msg__error__message));
     return;
   }
   /* DECODE RESPONSE based on msg_type */
-  RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType), );
+  RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType)
+      , "JSonValue 'msg_type' doesn't exist", );
   if ("authorize" == strMsgType) 
   { /* First message to authorize application */
     QJsonObject msg__authorize;
-    RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize), );
+    RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize)
+      , "JSonObject 'authorize' doesn't exist", );
     QString msg__authorize__balance;
     RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
-      , msg__authorize__balance), );
+      , msg__authorize__balance)
+      , "JSonValue 'balance' doesn't exist", );
     INFO_APP("balance:", msg__authorize__balance);
     mapValues.insert("balance", msg__authorize__balance);
   }

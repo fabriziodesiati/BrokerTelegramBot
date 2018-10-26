@@ -55,8 +55,12 @@ endif (MSVC)
 # Qt5 setup directives
 set(CMAKE_AUTOMOC ON)
 find_package(      Qt5Core REQUIRED)
+find_package(       Qt5Gui REQUIRED)
 find_package(   Qt5Network REQUIRED)
+find_package(       Qt5Sql REQUIRED)
 find_package(Qt5WebSockets REQUIRED)
+find_package(   Qt5Widgets REQUIRED)
+
 
 # The rpath to use for installed targets
 if     (${WIN32})
@@ -73,8 +77,11 @@ set(QTTELEGRAMBOT_PATH "QtTelegramBot")
 # Update the central variable containing all external libraries
 set(LIBS
   Qt5::Core
+  Qt5::Gui
   Qt5::Network
+  Qt5::Sql
   Qt5::WebSockets
+  Qt5::Widgets
 )
 
 # Update the central variable containing all external includes
@@ -113,6 +120,7 @@ set(SOURCES
   #APP
   ${SRC_PATH}/app_main.cpp
   ${SRC_PATH}/app_configuration.cpp
+  ${SRC_PATH}/app_database.cpp
   ${SRC_PATH}/app_broker_binary.cpp
   ${SRC_PATH}/app_telegram_bot.cpp
 )
@@ -145,6 +153,7 @@ set(INCLUDES
   #APP
   ${INC_PATH}/app_priv.h
   ${INC_PATH}/app_configuration.h
+  ${INC_PATH}/app_database.h
   ${INC_PATH}/app_broker_binary.h
   ${INC_PATH}/app_telegram_bot.h
 )

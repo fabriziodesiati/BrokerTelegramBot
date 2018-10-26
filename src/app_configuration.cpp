@@ -93,7 +93,8 @@ bool CAppConfiguration::load(const QString& strFileCfgPath)
   // empty map
   m_mapKeys.clear();
   QFile file(strFileCfgPath);
-  RETURN_IFW(!file.open(QIODevice::ReadOnly | QIODevice::Text), false);
+  RETURN_IFW(!file.open(QIODevice::ReadOnly | QIODevice::Text)
+    , QString("Cannot open configuration file %1").arg(strFileCfgPath), false);
   while (!file.atEnd()) {
     QString strLine = file.readLine();
     // check if is a comment line
