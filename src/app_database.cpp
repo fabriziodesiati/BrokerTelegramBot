@@ -125,6 +125,8 @@ bool CAppDatabase::connect(
   db.setUserName(username);
   // set password
   db.setPassword(password);
+  // emit notify
+  emit connected();
   return true;
 }
 

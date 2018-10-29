@@ -21,6 +21,8 @@
  * INCLUDES
  * ========================================================================== */
 #include "app_broker_binary.h"
+#include "app_database.h"
+#include <QSqlQuery>
 #include "ui_wdgmain.h"
 #include "ui_wdgcentral.h"
 
@@ -44,6 +46,20 @@
 /* ==========================================================================
  * STATIC MEMBERS
  * ========================================================================== */
+/* ==========================================================================
+ *        FUNCTION NAME: CurrentDateTime
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+QString CAppBrokerBinary::CurrentDateTime()
+{
+  QDateTime dt = QDateTime::currentDateTime();
+  return dt.toString("yyyy-MM-dd hh:mm:ss.zzz000");
+}
+
 /* ==========================================================================
  *        FUNCTION NAME: CWdgCentral
  * FUNCTION DESCRIPTION: constructor
@@ -82,12 +98,13 @@ CWdgCentral::~CWdgCentral()
  * ========================================================================== */
 CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   , const QString& tokenBot, QMainWindow *parent)
-: ui                { new Ui::CWdgMain }
-, m_pAppTelegramBot {          nullptr }
-, m_strAppId        {           app_id }
-, m_strToken        {            token }
-, m_strTokenBot     {         tokenBot }
-, m_i64Session      {               -1 }
+: uiMain                 { new Ui::CWdgMain }
+, m_pAppTelegramBot      {          nullptr }
+, m_strAppId             {           app_id }
+, m_strToken             {            token }
+, m_strTokenBot          {         tokenBot }
+, m_i64SessionId         {               -1 }
+, m_i64SessionIdSelected {               -1 }
 {
   DEBUG_APP("Starting Broker Binary ...", "");
   /* Set URL */
@@ -95,10 +112,21 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
     .arg(m_strAppId));
 
   /* Setup user interface */
-  ui->setupUi(this);
+  uiMain->setupUi(this);
 
   setCentralWidget(&m_wdgCentral);
-  uiC = m_wdgCentral.getUi();
+  ui = m_wdgCentral.getUi();
+
+  /* Connect model */
+  ui->tbHistory->setModel(&m_model);
+
+  /* connect signals and slots */
+  connect(&CAppDatabase::GetInstance()
+    , SIGNAL(connected())
+    , SLOT(slotOnDbConnected()));
+  connect(ui->comboSession
+    , SIGNAL(currentTextChanged(const QString&))
+    , SLOT(slotOnComboSessionsCurrentTextChanged(const QString&)));
 }
 
 /* ==========================================================================
@@ -111,7 +139,7 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
  * ========================================================================== */
 CAppBrokerBinary::~CAppBrokerBinary()
 {
-  delete ui;
+  delete uiMain;
 }
 
 /* ==========================================================================
@@ -148,7 +176,6 @@ void CAppBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
   //m_webSocket.close();
 }
 
-
 /* ==========================================================================
  *        FUNCTION NAME: slotOnMessageTelegramBot
  * FUNCTION DESCRIPTION: 
@@ -161,9 +188,11 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
   QString strMsg = message.string;
   DEBUG_APP("Telegram message received", strMsg);
-  QDateTime dt = QDateTime::currentDateTime();
-  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 TBOT RECV")
-    , strMsg);
+  CATCH_ABORT(m_HistoryInsert({
+      {"operation" , "TBOT RECV"}
+    , {"parameters", strMsg}
+    , {"details"   , strMsg} })
+    , "Unable to insert history record on database");
 #if 0 //APP_BROKER_BINARY_DEBUG == 1
   QDateTime dt = QDateTime::currentDateTime();
   qDebug() << "===============================================================";
@@ -191,6 +220,27 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnComboSessionsCurrentTextChanged
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
+  const QString& strSelectedSession)
+{
+  m_i64SessionIdSelected = -1;
+  RETURN_IF(strSelectedSession.isEmpty(), );  
+  if ("ALL" != strSelectedSession) {
+    auto list = strSelectedSession.split(":");
+    CATCH_BUG(list.count() < 2, "ComboBox for sessions is malformed");
+    m_i64SessionIdSelected = strSelectedSession.split(":").at(0).toLongLong();
+  }
+  CATCH_ABORT(!m_HistoryRelaod(true), "Cannot reload history from database");
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnDbConnected
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -200,8 +250,157 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
  * ========================================================================== */
 void CAppBrokerBinary::slotOnDbConnected()
 {
+  /* Create database tables is don't exist */
+  CATCH_ABORT(!m_DbCreateTable(), "Unable to create database tables");
+  /* Create session on database */
+  CATCH_ABORT(-1 == m_SessionCreate()
+    , "Unable to create a valid session on database");
+  /* Reload combo sessions */
+  CATCH_ABORT(!m_ComboSessionLoad()
+    , "Unable to load session list from database");
   /* Open sockect connection */
-  m_OpenSocket();
+  CATCH_ABORT(!m_OpenSocket(), "Unable to open socket connection");
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbCreateTable
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbCreateTable()
+{
+  /* Create Table sessions */
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(
+      "CREATE TABLE IF NOT EXISTS sessions ( \
+          id integer PRIMARY KEY AUTOINCREMENT \
+        , date_time text NOT NULL UNIQUE")
+    , "Unable to create sessions table"
+    , false);
+  /* Create Table history */
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(
+      "CREATE TABLE IF NOT EXISTS history ( \
+          id integer PRIMARY KEY AUTOINCREMENT \
+        , session_id NOT NULL \
+        , date_time text NOT NULL \
+        , operation text NOT NULL \
+        , parameters text \
+        , details text \
+        , balance text \
+        , FOREIGN KEY(session_id) REFERENCES sessions(id)")
+    , "Unable to create history table"
+    , false);
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_SessionCreate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_SessionCreate()
+{
+  QString strCurrentDateTime = CurrentDateTime();
+  int64_t m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
+    "INSERT INTO sessions (date_time) VALUES ('%1')").arg(strCurrentDateTime));
+  RETURN_IFW(-1 == m_i64SessionId
+    , "Unable to create a valid sesison id on database", false);
+  ui->leSession->setText(QString("%1: %2").arg(m_i64SessionId)
+    .arg(strCurrentDateTime));
+  return m_i64SessionId;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_ComboSessionLoad
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_ComboSessionLoad()
+{
+  /* Clear combo and map */
+  ui->comboSession->clear();
+  /* Select sessions */
+  const QString strQuery = "SELECT DISTINCT id, date_time FROM session \
+                            ORDER BY date_time DESC";
+  QSqlQuery qry;
+  RETURN_IFW(!qry.exec(strQuery), QString("Unable to execute query [%1] E=%2")
+    .arg(strQuery).arg(qry.lastError().text()), false);
+  /* Add entry for ALL */
+  QStringList listItems = QStringList() << "ALL";
+  QString strSelected;
+  while(qry.next()) {
+    QString strComboItem = QString("%1: %2")
+      .arg(qry.value("id").toString()).arg(qry.value("date_time").toString());
+    int64_t i64ComboValue = qry.value("id").toLongLong();
+    listItems.append(strComboItem);
+    if (i64ComboValue == m_i64SessionId) {
+      strSelected = strComboItem;
+    }
+  }
+  /* Populate combo */
+  ui->comboSession->addItems(listItems);
+  /* Select current session */
+  if (!strSelected.isEmpty()) {
+    ui->comboSession->setCurrentText(strSelected);
+  }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_HistoryRelaod
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_HistoryRelaod(bool bForceResize)
+{
+  m_model.setQuery(QString("SELECT * from history %2 ORDER BY date_time DESC")
+    .arg(-1 == m_i64SessionIdSelected ? ""
+                 : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
+  /* Hide columns first time */
+  static bool bHideColumns = true;
+  static const QList<bool> listHiddenCols = QList<bool>()
+    << true  //id
+    << true  //session_id
+    << false //date_time
+    << false //operation
+    << false //parameters
+    << true  //details
+    << false;//balance
+  if (bHideColumns)
+  {
+    int iCol = 0;
+    for(auto bHidden: listHiddenCols) {
+      ui->tbHistory->setColumnHidden(iCol++, bHidden);
+    }
+    bHideColumns = false;
+  }
+  /* Resize to contents */
+  static bool bResizeToContents = true;
+  if (bForceResize) {
+    bResizeToContents = true;
+  }
+  if (bResizeToContents && m_model.rowCount() > 0)
+  { /* Reset column width based on size*/
+    for(auto iCol=0; iCol < m_model.columnCount(); ++iCol)
+    { // Resize only shown clolumns
+      if (!listHiddenCols.at(iCol)) {
+        ui->tbHistory->resizeColumnToContents(iCol);
+      }
+    }
+    bResizeToContents = false;
+  }
+  return true;
 }
 
 /* ==========================================================================
@@ -212,12 +411,14 @@ void CAppBrokerBinary::slotOnDbConnected()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CAppBrokerBinary::m_OpenSocket()
+bool CAppBrokerBinary::m_OpenSocket()
 {
   DEBUG_APP("WebSocket server", m_url.toString());
-  QDateTime dt = QDateTime::currentDateTime();
-  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK OPEN")
-    , m_url.toString());
+  CATCH_ABORT(m_HistoryInsert({
+      {"operation" , "SOCK OPEN"}
+    , {"parameters", m_url.toString()}
+    , {"details"   , m_url.toString()} })
+    , "Unable to insert history record on database");
   static bool bFirstTime = true;
   if (bFirstTime) {
     /* Connect signals and slots for socket */
@@ -225,14 +426,43 @@ void CAppBrokerBinary::m_OpenSocket()
       , &CAppBrokerBinary::slotOnSocketConnected);
     connect(&m_webSocket, &QWebSocket::disconnected, this
       , &CAppBrokerBinary::closed);
-
     /* Start bot */
-    m_BotStart();
-
+    CATCH_ABORT(!m_BotStart(), "Unable to start Telegram Bot");
     bFirstTime = false;
   }
   m_webSocket.open(QUrl(m_url));
+  return true;
 }
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_HistoryInsert
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_HistoryInsert(const QMap<QString,QString>& mapValues)
+{
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
+      "INSERT INTO history (\
+        session_id, date_time, operation, parameters, details, balance) \
+      VALUES (%1,'%2',)")
+      .arg(m_i64SessionId)
+      .arg(CurrentDateTime())
+      .arg(mapValues.value("operation"))
+      .arg(mapValues.value("parameters"))
+      .arg(mapValues.value("details"))
+      .arg(ui->leBalance->text()))
+    , "Unable to insert history record"
+    , false);
+  // Reload history if session is selected (or ALL)
+  RETURN_IF(
+      -1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected
+    , m_HistoryRelaod());
+  return true;
+}
+
 
 /* ==========================================================================
  *        FUNCTION NAME: m_BotStart
@@ -242,7 +472,7 @@ void CAppBrokerBinary::m_OpenSocket()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CAppBrokerBinary::m_BotStart()
+bool CAppBrokerBinary::m_BotStart()
 {
   DEBUG_APP("Starting Telegram Bot ...", "");
   /* Instatiate Telegram Bot */
@@ -251,6 +481,7 @@ void CAppBrokerBinary::m_BotStart()
     , true, 500, 4);
   connect(m_pAppTelegramBot,  &Telegram::Bot::message
     , this, &CAppBrokerBinary::slotOnMessageTelegramBot);
+  return true;
 }
 
 /* ==========================================================================
@@ -278,9 +509,16 @@ QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   // Send
   if (!strMsg.isEmpty()) {
     DEBUG_APP(QString("Send message socket %1").arg(strMsgType), strMsg);
-    QDateTime dt = QDateTime::currentDateTime();
-    m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK SEND")
-      , strMsg);
+    QString strParameters = QString("%1: ").arg(strMsgType);
+    for(auto str: mapValues.keys()) {
+      strParameters.append(QString("%1=%2, ")
+        .arg(str).arg(mapValues.value(str)));
+    }
+    CATCH_ABORT(m_HistoryInsert({
+        {"operation" , "SOCK SEND"}
+      , {"parameters", strParameters}
+      , {"details"   , strMsg} })
+      , "Unable to insert history record on database");
     m_webSocket.sendTextMessage(strMsg);
   }
   return strMsg;
@@ -298,9 +536,6 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   , QString& strMsgType, QMap<QString, QString>& mapValues)
 {
   DEBUG_APP("Recv message socket", strMsg);
-  QDateTime dt = QDateTime::currentDateTime();
-  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK RECV")
-    , strMsg);
   // Parsing JSON
   QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
   RETURN_IFW(doc.isNull(), "JsonDocument is null", );
@@ -317,23 +552,37 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       , "JSonValue 'message' doesn't exist", );
     WARNING_APP("Binary return error", QString("code [%1] error[%2]")
       .arg(msg__error__code).arg(msg__error__message));
-    return;
+    strMsgType = "error";
+    mapValues.insert("code", msg__error__code);
+    mapValues.insert("message", msg__error__message);
   }
-  /* DECODE RESPONSE based on msg_type */
-  RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType)
+  else
+  { /* DECODE RESPONSE based on msg_type */
+    RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType)
       , "JSonValue 'msg_type' doesn't exist", );
-  if ("authorize" == strMsgType) 
-  { /* First message to authorize application */
-    QJsonObject msg__authorize;
-    RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize)
-      , "JSonObject 'authorize' doesn't exist", );
-    QString msg__authorize__balance;
-    RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
-      , msg__authorize__balance)
-      , "JSonValue 'balance' doesn't exist", );
-    INFO_APP("balance:", msg__authorize__balance);
-    mapValues.insert("balance", msg__authorize__balance);
+    if ("authorize" == strMsgType) 
+    { /* First message to authorize application */
+      QJsonObject msg__authorize;
+      RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize)
+        , "JSonObject 'authorize' doesn't exist", );
+      QString msg__authorize__balance;
+      RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
+        , msg__authorize__balance)
+        , "JSonValue 'balance' doesn't exist", );
+      INFO_APP("balance:", msg__authorize__balance);
+      mapValues.insert("balance", msg__authorize__balance);
+    }
   }
+  QString strParameters = QString("%1: ").arg(strMsgType);
+  for(auto str: mapValues.keys()) {
+    strParameters.append(QString("%1=%2, ")
+      .arg(strMsgType).arg(str).arg(mapValues.value(str)));
+  }
+  CATCH_ABORT(m_HistoryInsert({
+      {"operation" , "SOCK RECV"}
+    , {"parameters", strParameters}
+    , {"details"   , strMsg} })
+    , "Unable to insert history record on database");
 }
 
 /* ==========================================================================

@@ -36,9 +36,6 @@ namespace Ui {
   class CWdgCentral;
 }
 
-/* ==========================================================================
- * CLASS DECLARATION
- * ========================================================================== */
 class CWdgCentral : public QWidget
 {
   Q_OBJECT
@@ -53,10 +50,14 @@ private:
   Ui::CWdgCentral *ui;
 };
 
+/* ==========================================================================
+ * CLASS DECLARATION
+ * ========================================================================== */
 class CAppBrokerBinary : public QMainWindow
 {
   Q_OBJECT
 public:
+  static QString CurrentDateTime();
 
   /**
    * CAppBrokerBinary constructor
@@ -77,14 +78,15 @@ public slots:
   void slotOnSocketConnected();
   void slotOnMessageSocketReceived(QString message);
   void slotOnMessageTelegramBot(Telegram::Message);
+  void slotOnComboSessionsCurrentTextChanged(const QString&);
 
 protected slots:
   void slotOnDbConnected();
 
 private:
   /* Pointer to user interface */
-  Ui::CWdgMain *ui;
-  Ui::CWdgCentral *uiC;
+  Ui::CWdgMain *uiMain;
+  Ui::CWdgCentral *ui;
 
   CAppTelegramBot* m_pAppTelegramBot;
 
@@ -96,12 +98,17 @@ private:
   QString m_strTokenBot;
   QUrl m_url;
 
-  int64_t m_i64Session;
+  int64_t m_i64SessionId;
+  int64_t m_i64SessionIdSelected;
   QWebSocket m_webSocket;
-  QMap<QString,QString> m_mapHistoryMsg;
 
-  void m_OpenSocket();
-  void m_BotStart();
+  bool m_DbCreateTable();
+  int64_t m_SessionCreate();
+  bool m_ComboSessionLoad();
+  bool m_HistoryRelaod(bool = false);
+  bool m_OpenSocket();
+  bool m_HistoryInsert(const QMap<QString,QString>&);
+  bool m_BotStart();
   QString m_SendSocketMessage(const QString&, const QMap<QString,QString>&);
   void m_RecvSocketMessage(const QString&, QString&, QMap<QString, QString>&);
   bool m_JSonObject(const QJsonObject&, const QString&, QJsonObject&);

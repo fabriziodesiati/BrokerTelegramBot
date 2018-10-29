@@ -78,7 +78,7 @@
       <number>2</number>
      </property>
      <item>
-      <widget class="QComboBox" name="cbSession">
+      <widget class="QComboBox" name="comboSession">
        <item>
         <property name="text">
          <string>ALL</string>
@@ -135,7 +135,7 @@
         </size>
        </property>
        <property name="text">
-        <string>10000.00</string>
+        <string/>
        </property>
        <property name="maxLength">
         <number>10</number>
