@@ -118,9 +118,10 @@ set(SOURCES
   ${QTTELEGRAMBOT_PATH}/types/callbackquery.cpp
   #APP
   ${SRC_PATH}/app_main.cpp
-  ${SRC_PATH}/app_configuration.cpp
-  ${SRC_PATH}/app_database.cpp
   ${SRC_PATH}/app_broker_binary.cpp
+  ${SRC_PATH}/app_configuration.cpp
+  ${SRC_PATH}/app_database.cpp  
+  ${SRC_PATH}/app_model.cpp
   ${SRC_PATH}/app_telegram_bot.cpp
 )
 
@@ -151,21 +152,21 @@ set(INCLUDES
   ${QTTELEGRAMBOT_PATH}/types/reply/replykeyboardremove.h
   #APP
   ${INC_PATH}/app_priv.h
+  ${INC_PATH}/app_broker_binary.h
   ${INC_PATH}/app_configuration.h
   ${INC_PATH}/app_database.h
-  ${INC_PATH}/app_broker_binary.h
+  ${INC_PATH}/app_model.h
   ${INC_PATH}/app_telegram_bot.h
 )
 # Setup variable containing UI files
 set(GUIS
-  ${UIF_PATH}/wdgmain.ui  
+  ${UIF_PATH}/wdgmain.ui
+  ${UIF_PATH}/wdgcentral.ui
 )
 
 # Prepare resources and user interface files
 qt5_add_resources(RES_OUT ${RES})
 qt5_wrap_ui(GUIS_H ${GUIS})
-
-
 
 # Setup specific source code macros.
 set(         APP_SYSTEM_NAME ${CMAKE_SYSTEM_NAME} CACHE STRING "Name")

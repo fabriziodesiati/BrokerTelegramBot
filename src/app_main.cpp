@@ -20,7 +20,7 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_MAIN_DEBUG 0
+#define APP_DEBUG 0
 
 /* ==========================================================================
  * INCLUDES
@@ -30,7 +30,6 @@
 #include "app_configuration.h"
 #include "app_database.h"
 #include "app_broker_binary.h"
-#include "app_telegram_bot.h"
 
 /* ==========================================================================
  * CUSTOMIZABLE MODULE PRIVATE MACROS
@@ -106,7 +105,19 @@ int main(int argc,char* argv[])
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication app(argc, argv);
 
-  /* Connect database */
+  /* Create an instance of BrokerBinary */
+  CAppBrokerBinary* pAppBrokerBinary = new(std::nothrow) CAppBrokerBinary(
+    strAppIdBroker, strTokenBroker, strTokenBot);
+
+  /* Connect signals and slots */
+  QObject::connect(
+      pAppBrokerBinary, &CAppBrokerBinary::closed
+    , &app, &QCoreApplication::quit);
+  
+  /* Show widget main */
+  pAppBrokerBinary->show();
+
+  /* Connect database: db connection must be last operation */
   CATCH_ABORT(!CAppDatabase::GetInstance().connect(
       CAppConfiguration::GetInstance().get("db.driver", "QSQLITE")
     , strDbFilePath
@@ -115,27 +126,6 @@ int main(int argc,char* argv[])
     , CAppConfiguration::GetInstance().get("db.password")
     , CAppConfiguration::GetInstance().get("db.port")
   ), QString("Cannot connect to database %1").arg(strDbFilePath));
-  /* Create an instance of BrokerBinary */
-  CAppBrokerBinary* pAppBrokerBinary = 
-    new(std::nothrow) CAppBrokerBinary(strAppIdBroker, strTokenBroker);
-#if APP_MAIN_DEBUG == 1
-  qDebug() << "Started Broker Binary";
-#endif
 
-  /* Create an instance of TelegramBot */
-  CAppTelegramBot* pAppTelegramBot =
-    new(std::nothrow) CAppTelegramBot(strTokenBot, true, 500, 4);
-#if APP_MAIN_DEBUG == 1
-  qDebug() << "Started Broker Telegram Bot";
-#endif
-  /* Connect signals and slots */
-  QObject::connect(
-      pAppBrokerBinary, &CAppBrokerBinary::closed
-    , &app, &QCoreApplication::quit);
-  QObject::connect(
-      pAppTelegramBot,  &Telegram::Bot::message
-    , pAppBrokerBinary, &CAppBrokerBinary::slotOnMessageTelegramBot);  
-  /* Show widget main */
-  pAppBrokerBinary->show();
   return app.exec();
 }

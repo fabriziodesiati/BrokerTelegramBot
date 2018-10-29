@@ -28,7 +28,7 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_DATABASE_DEBUG 1
+#define APP_DEBUG 1
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -99,7 +99,7 @@ bool CAppDatabase::connect(
   , const QString& password
   , const QString& port)
 {
-#if APP_DATABASE_DEBUG == 1
+#if APP_DEBUG == 1
   { QString strMsg;
     auto list = QSqlDatabase::drivers();
     strMsg.append(QString("Drivers sql avalilable are [%1]:\n")
@@ -147,14 +147,14 @@ void CAppDatabase::close()
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: connected
+ *        FUNCTION NAME: isConnected
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181026
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppDatabase::connected() const
+bool CAppDatabase::isConnected() const
 {
   // get database
   QSqlDatabase db = QSqlDatabase::database();
@@ -175,7 +175,7 @@ bool CAppDatabase::connected() const
 bool CAppDatabase::execQuery(const QString& strQuery)
 {
   // check if database is connected
-  RETURN_IFW(!connected(), "Database isn't connected", false);
+  RETURN_IFW(!isConnected(), "Database isn't connected", false);
   // execute query
   QSqlQuery qry;
   RETURN_IFW(!qry.exec(strQuery)
@@ -195,7 +195,7 @@ bool CAppDatabase::execQuery(const QString& strQuery)
 int64_t CAppDatabase::execInsertQuery(const QString& strQuery)
 {
   // check if database is connected
-  RETURN_IFW(!connected(), "Database isn't connected", false);
+  RETURN_IFW(!isConnected(), "Database isn't connected", false);
   // execute query
   QSqlQuery qry;
   RETURN_IFW(!qry.exec(strQuery)

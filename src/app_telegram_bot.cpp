@@ -25,7 +25,7 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_TELEGRAM_BOT_DEBUG 1
+#define APP_DEBUG 1
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -50,11 +50,11 @@
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-CAppTelegramBot::CAppTelegramBot(QString token, bool updates, quint32 updateInterval
-  , quint32 pollingTimeout, QObject *parent)
+CAppTelegramBot::CAppTelegramBot(QString token, bool updates
+  , quint32 updateInterval, quint32 pollingTimeout, QObject *parent)
 : Telegram::Bot { token, updates, updateInterval, pollingTimeout, parent }
 , m_strToken    { token                                                  }
-{  
+{
 }
 
 /* ==========================================================================

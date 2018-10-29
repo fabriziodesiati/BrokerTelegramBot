@@ -19,6 +19,7 @@
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_priv.h"
+#include <QObject>
 #include <QSqlDatabase>
 
 /* ==========================================================================
@@ -28,8 +29,9 @@
 /* ==========================================================================
  * CLASS DECLARATION
  * ========================================================================== */
-class CAppDatabase
+class CAppDatabase : public QObject
 {
+  Q_OBJECT
 public:
   /**
    * Get instance for this singleton.
@@ -66,9 +68,9 @@ public:
   void close();
 
   /**
-   * Database in connected
+   * Return true if database is connected
    */
-  bool connected() const;
+  bool isConnected() const;
 
   /**
    * Execute query
@@ -80,6 +82,9 @@ public:
    * retrieve -1 if error
    */
   int64_t execInsertQuery(const QString&);
+
+signals:
+  void connected();
 };
 
 #endif // APP_DATABASE_H

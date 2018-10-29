@@ -22,11 +22,12 @@
  * ========================================================================== */
 #include "app_broker_binary.h"
 #include "ui_wdgmain.h"
+#include "ui_wdgcentral.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_BROKER_BINARY_DEBUG 1
+#define APP_DEBUG 1
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -44,6 +45,34 @@
  * STATIC MEMBERS
  * ========================================================================== */
 /* ==========================================================================
+ *        FUNCTION NAME: CWdgCentral
+ * FUNCTION DESCRIPTION: constructor
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+CWdgCentral::CWdgCentral(QWidget *parent)
+: QWidget(parent)
+, ui(new Ui::CWdgCentral)
+{
+  ui->setupUi(this);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: ~CWdgCentral
+ * FUNCTION DESCRIPTION: destructor
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+CWdgCentral::~CWdgCentral()
+{
+    delete ui;
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: CAppBrokerBinary
  * FUNCTION DESCRIPTION: constructor
  *        CREATION DATE: 20181019
@@ -52,25 +81,24 @@
  *         SUBORDINATES: None
  * ========================================================================== */
 CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
-  , QMainWindow *parent)
-: ui          { new Ui::CWdgMain }
-, m_strAppId  {           app_id }
-, m_strToken  {            token }
+  , const QString& tokenBot, QMainWindow *parent)
+: ui                { new Ui::CWdgMain }
+, m_pAppTelegramBot {          nullptr }
+, m_strAppId        {           app_id }
+, m_strToken        {            token }
+, m_strTokenBot     {         tokenBot }
+, m_i64Session      {               -1 }
 {
-  /* Setup user interface */
-  ui->setupUi(this);
-  
+  DEBUG_APP("Starting Broker Binary ...", "");
+  /* Set URL */
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
     .arg(m_strAppId));
-  DEBUG_APP("WebSocket server", m_url.toString());
-  QDateTime dt = QDateTime::currentDateTime();
-  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK OPEN")
-    , m_url.toString());
-  connect(&m_webSocket, &QWebSocket::connected   , this
-    , &CAppBrokerBinary::slotOnSocketConnected);
-  connect(&m_webSocket, &QWebSocket::disconnected, this
-    , &CAppBrokerBinary::closed);
-  m_webSocket.open(QUrl(m_url));
+
+  /* Setup user interface */
+  ui->setupUi(this);
+
+  setCentralWidget(&m_wdgCentral);
+  uiC = m_wdgCentral.getUi();
 }
 
 /* ==========================================================================
@@ -160,6 +188,69 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
     qDebug() << "Broker NON SCOMMETTERE! ";
   }
 #endif
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnDbConnected
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnDbConnected()
+{
+  /* Open sockect connection */
+  m_OpenSocket();
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_OpenSocket
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_OpenSocket()
+{
+  DEBUG_APP("WebSocket server", m_url.toString());
+  QDateTime dt = QDateTime::currentDateTime();
+  m_mapHistoryMsg.insert(dt.toString("yyyy-MM-dd hh:mm:ss.zzz000 SOCK OPEN")
+    , m_url.toString());
+  static bool bFirstTime = true;
+  if (bFirstTime) {
+    /* Connect signals and slots for socket */
+    connect(&m_webSocket, &QWebSocket::connected   , this
+      , &CAppBrokerBinary::slotOnSocketConnected);
+    connect(&m_webSocket, &QWebSocket::disconnected, this
+      , &CAppBrokerBinary::closed);
+
+    /* Start bot */
+    m_BotStart();
+
+    bFirstTime = false;
+  }
+  m_webSocket.open(QUrl(m_url));
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_BotStart
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_BotStart()
+{
+  DEBUG_APP("Starting Telegram Bot ...", "");
+  /* Instatiate Telegram Bot */
+  delete m_pAppTelegramBot;
+  m_pAppTelegramBot = new(std::nothrow) CAppTelegramBot(m_strTokenBot
+    , true, 500, 4);
+  connect(m_pAppTelegramBot,  &Telegram::Bot::message
+    , this, &CAppBrokerBinary::slotOnMessageTelegramBot);
 }
 
 /* ==========================================================================
