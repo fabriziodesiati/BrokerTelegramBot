@@ -25,7 +25,7 @@
 /* ==========================================================================
  * INCLUDES
  * ========================================================================== */
-#include <QCoreApplication>
+#include <QApplication>
 #include "QtTelegramBot/qttelegrambot.h"
 #include "app_configuration.h"
 #include "app_database.h"
@@ -61,7 +61,6 @@
  * ========================================================================== */
 int main(int argc,char* argv[])
 {
-  QCoreApplication a(argc, argv);
   QString strCfgFilePath = "./etc/BrokerTelegramBot_default.cfg";
   QString strDbFilePath = "./db/BrokerTelegramBot.sqlite";
   QString strAppIdBroker;
@@ -101,6 +100,12 @@ int main(int argc,char* argv[])
   CATCH_ABORT(strAppIdBroker.isEmpty(), "Required --app_id-broker <APP_ID>");
   CATCH_ABORT(strTokenBroker.isEmpty(), "Required --token-broker <TOKEN>");
   CATCH_ABORT(strTokenBot.isEmpty()   , "Required --token-bot <TOKEN>");
+
+  /* Create Application */
+  // Set important Qt flags
+  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+  QApplication app(argc, argv);
+
   /* Connect database */
   CATCH_ABORT(!CAppDatabase::GetInstance().connect(
       CAppConfiguration::GetInstance().get("db.driver", "QSQLITE")
@@ -116,6 +121,7 @@ int main(int argc,char* argv[])
 #if APP_MAIN_DEBUG == 1
   qDebug() << "Started Broker Binary";
 #endif
+
   /* Create an instance of TelegramBot */
   CAppTelegramBot* pAppTelegramBot =
     new(std::nothrow) CAppTelegramBot(strTokenBot, true, 500, 4);
@@ -125,11 +131,11 @@ int main(int argc,char* argv[])
   /* Connect signals and slots */
   QObject::connect(
       pAppBrokerBinary, &CAppBrokerBinary::closed
-    , &a, &QCoreApplication::quit);
+    , &app, &QCoreApplication::quit);
   QObject::connect(
       pAppTelegramBot,  &Telegram::Bot::message
     , pAppBrokerBinary, &CAppBrokerBinary::slotOnMessageTelegramBot);  
   /* Show widget main */
-  //...
-  return a.exec();
+  pAppBrokerBinary->show();
+  return app.exec();
 }

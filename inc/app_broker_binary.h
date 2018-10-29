@@ -19,6 +19,7 @@
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_priv.h"
+#include <QMainWindow>
 #include <QtWebSockets/QWebSocket>
 #include "QtTelegramBot/types/message.h"
 #include <QJsonDocument>
@@ -28,9 +29,16 @@
  * ========================================================================== */
 
 /* ==========================================================================
+ * FORWARD DECLARATIONS
+ * ========================================================================== */
+namespace Ui {
+  class CWdgMain;
+}
+
+/* ==========================================================================
  * CLASS DECLARATION
  * ========================================================================== */
-class CAppBrokerBinary : public QObject
+class CAppBrokerBinary : public QMainWindow
 {
   Q_OBJECT
 public:
@@ -42,7 +50,7 @@ public:
    * @param parent
    */
   explicit CAppBrokerBinary(const QString& app_id, const QString& token
-    , QObject* parent = 0);
+    , QMainWindow *parent = 0);
   ~CAppBrokerBinary();
 
 signals:
@@ -54,6 +62,9 @@ public slots:
   void slotOnMessageTelegramBot(Telegram::Message);    
     
 private:
+  /* Pointer to user interface */
+  Ui::CWdgMain *ui;
+  
   QString m_strAppId;
   QString m_strToken;
   QUrl m_url;

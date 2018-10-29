@@ -7,10 +7,10 @@
 cmake_minimum_required(VERSION 3.2)
 
 # Declare project name and languages
-project(BrokerTeleGramBot)
+project(BrokerTelegramBot)
 
 # Declare name of main target (don't use '-' in names)
-set(MAINTGT BrokerTeleGramBot)
+set(MAINTGT BrokerTelegramBot)
 set(VERSION_VAR SPACEKIT_APP_VERSION)
 set(COMPILE_DEF HAVE_CONFIG_H)
 set(WEXCEPTIONS 0 CACHE STRING "Enable exceptions") # Enable Exceptions
@@ -25,10 +25,10 @@ set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Define version of this project
-set(APP_VMAJOR 1) # "Major library version"
-set(APP_VMINOR 0) # "Minor library version"
-set(APP_VMICRO 0) # "Micro library version"
-set(APP_VPATCH 0) # "Patch library version"
+set(APP_VMAJOR 1 CACHE STRING "Major application version")
+set(APP_VMINOR 0 CACHE STRING "Minor application version")
+set(APP_VMICRO 0 CACHE STRING "Micro application version")
+set(APP_VPATCH 0 CACHE STRING "Patch application version")
 set(${VERSION_VAR}
   "${APP_VMAJOR}.${APP_VMINOR}.${APP_VMICRO}"
   CACHE STRING "Application version string")
@@ -44,6 +44,9 @@ file(STRINGS ${CMAKE_SOURCE_DIR}/baselinetag BASELINE)
 get_version("git" ${BASELINE} ${${MAINTGT}_SOURCE_DIR})
 set(APP_SOFTWARE_RELEASE ${SOURCE_VERSION})
 set(APP_PLAIN_RELEASE ${PLAIN_VERSION})
+
+# Define main project folder
+set(MAIN_PRJ_FOLDER "${${MAINTGT}_SOURCE_DIR}")
 
 # Help cmake to find Qt
 if    (MSVC)
@@ -61,18 +64,14 @@ find_package(       Qt5Sql REQUIRED)
 find_package(Qt5WebSockets REQUIRED)
 find_package(   Qt5Widgets REQUIRED)
 
-
-# The rpath to use for installed targets
-if     (${WIN32})
-else   (${WIN32})
-  set(CMAKE_INSTALL_RPATH "${CMAKE_PREFIX_PATH}/lib")
-endif  (${WIN32})
-
 # Setup variables: source and include paths
 set(SRC_PATH "src")
 set(INC_PATH "inc")
+set(UIF_PATH "ui")
 set(QTTELEGRAMBOT_PATH "QtTelegramBot")
 
+# Resources.
+set(RES ${MAIN_PRJ_FOLDER}/${MAINTGT}.qrc)
 
 # Update the central variable containing all external libraries
 set(LIBS
@@ -157,14 +156,26 @@ set(INCLUDES
   ${INC_PATH}/app_broker_binary.h
   ${INC_PATH}/app_telegram_bot.h
 )
+# Setup variable containing UI files
+set(GUIS
+  ${UIF_PATH}/wdgmain.ui  
+)
 
-# Setup include installation directory
-set(INSTALL_INCLUDE_DIR include/${MAINTGT})
+# Prepare resources and user interface files
+qt5_add_resources(RES_OUT ${RES})
+qt5_wrap_ui(GUIS_H ${GUIS})
+
+
 
 # Setup specific source code macros.
 set(         APP_SYSTEM_NAME ${CMAKE_SYSTEM_NAME} CACHE STRING "Name")
 set(                APP_TAGS "NONE" CACHE STRING "Tags")
 set(     APP_LOGGING_ENABLED "1" CACHE STRING "Enable heavy logging.")
+
+# Setup Windows specific stuff
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    SET(RES_FILE "${MAINTGT}.rc")
+endif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 # Setup compile options
 if (NOT ${WEXCEPTIONS})
@@ -200,7 +211,7 @@ CONFIGURE_FILE(
   ${CMAKE_BINARY_DIR}/${MAINTGT}_config.h)
 
 # Add target for main
-add_executable(${MAINTGT} ${SOURCES} ${INCLUDES})
+add_executable(${MAINTGT} ${SOURCES} ${INCLUDES} ${GUIS_H} ${RES_OUT} ${RES_FILE})
 set_property(TARGET ${MAINTGT} PROPERTY VERSION ${${VERSION_VAR}})
 set_property(TARGET ${MAINTGT} PROPERTY SOVERSION ${APP_VMAJOR})
 set_property(TARGET ${MAINTGT} PROPERTY
@@ -222,17 +233,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
   set_target_properties(${MAINTGT} PROPERTIES
     RELWITHDEBINFO "/SUBSYSTEM:CONSOLE")
-  if   (${USE_CONSOLE})
-    set_target_properties(${MAINTGT} PROPERTIES
-      LINK_FLAGS_RELEASE "/SUBSYSTEM:CONSOLE")
-    set_target_properties(${MAINTGT} PROPERTIES
-      MINSIZEREL "/SUBSYSTEM:CONSOLE")
-  else (${USE_CONSOLE})
-    set_target_properties(${MAINTGT} PROPERTIES
-      LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-    set_target_properties(${MAINTGT} PROPERTIES
-      MINSIZEREL "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-  endif(${USE_CONSOLE})
+  set_target_properties(${MAINTGT} PROPERTIES
+    LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+  set_target_properties(${MAINTGT} PROPERTIES
+    MINSIZEREL "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
 endif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 # Installation of targets

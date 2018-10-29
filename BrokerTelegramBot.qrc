@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>resources/circle_blue.png</file>
+        <file>resources/circle_gray.png</file>
+        <file>resources/circle_green.png</file>
+        <file>resources/circle_orange.png</file>
+        <file>resources/circle_red.png</file>
+        <file>resources/circle_yellow.png</file>
+        <file>resources/empty.png</file>
+    </qresource>
+    <qresource prefix="/text"/>
+</RCC>

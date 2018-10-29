@@ -21,6 +21,7 @@
  * INCLUDES
  * ========================================================================== */
 #include "app_broker_binary.h"
+#include "ui_wdgmain.h"
 
 /* ==========================================================================
  * MODULE PRIVATE MACROS
@@ -51,11 +52,14 @@
  *         SUBORDINATES: None
  * ========================================================================== */
 CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
-  , QObject *parent)
-: QObject    { parent }
-, m_strAppId { app_id }
-, m_strToken {  token }
+  , QMainWindow *parent)
+: ui          { new Ui::CWdgMain }
+, m_strAppId  {           app_id }
+, m_strToken  {            token }
 {
+  /* Setup user interface */
+  ui->setupUi(this);
+  
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
     .arg(m_strAppId));
   DEBUG_APP("WebSocket server", m_url.toString());
@@ -79,6 +83,7 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
  * ========================================================================== */
 CAppBrokerBinary::~CAppBrokerBinary()
 {
+  delete ui;
 }
 
 /* ==========================================================================
