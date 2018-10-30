@@ -57,6 +57,15 @@ class CAppBrokerBinary : public QMainWindow
 {
   Q_OBJECT
 public:
+  /* Status */
+  enum class Status
+  {
+      kINITIALIZE
+    , kAUTHORIZED
+    , kWAITFORCON
+    , kPROPOSALGO
+  };
+
   static QString CurrentDateTime();
 
   /**
@@ -76,7 +85,8 @@ signals:
 
 public slots:
   void slotOnSocketConnected();
-  void slotOnMessageSocketReceived(QString message);
+  void slotOnSocketDisconnected();
+  void slotOnMessageSocketReceived(const QString&);
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
   void slotOnLookApply(const QString&);
@@ -90,19 +100,27 @@ private:
   Ui::CWdgCentral *ui;
 
   CAppTelegramBot* m_pAppTelegramBot;
+  QWebSocket m_webSocket;
 
   CWdgCentral m_wdgCentral;
   CAppModel m_model;
   
+  QUrl m_url;
+
+  Status m_status;
+
   QString m_strAppId;
   QString m_strToken;
-  QString m_strTokenBot;
-  QUrl m_url;
+  QString m_strTokenBot;  
 
   int64_t m_i64SessionId;
   int64_t m_i64SessionIdSelected;
-  QWebSocket m_webSocket;
+  
+  QString m_strIdProposal;
+  QString m_strContractType;
+  QString m_strPrice;
 
+  void m_StatusUpdate(Status);
   void m_LookApply(const QString&);
   bool m_DbCreateTable();
   int64_t m_SessionCreate();
@@ -111,8 +129,10 @@ private:
   bool m_OpenSocket();
   bool m_HistoryInsert(const QMap<QString,QString>&);
   bool m_BotStart();
-  QString m_SendSocketMessage(const QString&, const QMap<QString,QString>&);
-  void m_RecvSocketMessage(const QString&, QString&, QMap<QString, QString>&);
+  bool m_RcvTelegramMessage(const QString&);
+  bool m_SendSocketMessage(const QString&, const QMap<QString,QString>&
+    , QString&);
+  bool m_RecvSocketMessage(const QString&, QString&, QMap<QString, QString>&);
   bool m_JSonObject(const QJsonObject&, const QString&, QJsonObject&);
   bool m_JSonValueStr(const QJsonObject&, const QString&, QString&);
 };

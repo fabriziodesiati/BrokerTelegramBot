@@ -120,12 +120,11 @@ int main(int argc,char* argv[])
   /* Create an instance of BrokerBinary */
   CAppBrokerBinary* pAppBrokerBinary = new(std::nothrow) CAppBrokerBinary(
     strAppIdBroker, strTokenBroker, strTokenBot);
-
   /* Connect signals and slots */
   QObject::connect(
       pAppBrokerBinary, &CAppBrokerBinary::closed
-    , &app, &QCoreApplication::quit);
-  
+    , &app
+    , &QCoreApplication::quit);
   /* Show widget main */
   pAppBrokerBinary->show();
 

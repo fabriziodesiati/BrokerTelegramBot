@@ -21,6 +21,7 @@
  * INCLUDES
  * ========================================================================== */
 #include "app_broker_binary.h"
+#include "app_configuration.h"
 #include "app_database.h"
 #include <QSettings>
 #include <QStyleFactory>
@@ -100,13 +101,17 @@ CWdgCentral::~CWdgCentral()
  * ========================================================================== */
 CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   , const QString& tokenBot, QMainWindow *parent)
-: uiMain                 { new Ui::CWdgMain }
-, m_pAppTelegramBot      {          nullptr }
-, m_strAppId             {           app_id }
-, m_strToken             {            token }
-, m_strTokenBot          {         tokenBot }
-, m_i64SessionId         {               -1 }
-, m_i64SessionIdSelected {               -1 }
+: uiMain                 {    new Ui::CWdgMain }
+, m_pAppTelegramBot      {             nullptr }
+, m_status               { Status::kINITIALIZE }
+, m_strAppId             {              app_id }
+, m_strToken             {               token }
+, m_strTokenBot          {            tokenBot }
+, m_i64SessionId         {                  -1 }
+, m_i64SessionIdSelected {                  -1 }
+, m_strIdProposal        {                  "" }
+, m_strContractType      {                  "" }
+, m_strPrice             {                  "" }
 {
   DEBUG_APP("Starting Broker Binary ...", "");
   /* Set URL */
@@ -117,9 +122,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   uiMain->setupUi(this);
 
   /* Hide controls */
-  uiMain->menubar->setVisible(false);
-  uiMain->statusbar->setVisible(false);
+  uiMain->menubar->setVisible(false);  
   uiMain->toolBar->setVisible(false);
+  uiMain->statusbar->setVisible(true);
 
   setCentralWidget(&m_wdgCentral);
   ui = m_wdgCentral.getUi();
@@ -148,6 +153,13 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   if (strCurrTextPrev == ui->cbLookApply->currentText()) {
     slotOnLookApply(strCurrTextPrev);
   }
+
+  /* Initialize proposal */
+  ui->dsbProposal->setValue(
+    CAppConfiguration::GetInstance().get("proposal", "1.0").toDouble());
+
+  /* Update Status: INITIALIZE */
+  m_StatusUpdate(Status::kINITIALIZE);
 }
 
 /* ==========================================================================
@@ -174,10 +186,34 @@ CAppBrokerBinary::~CAppBrokerBinary()
 void CAppBrokerBinary::slotOnSocketConnected()
 {
   DEBUG_APP("WebSocket connected", "");
-  connect(&m_webSocket, &QWebSocket::textMessageReceived, this
-    , &CAppBrokerBinary::slotOnMessageSocketReceived);
+  static bool bFirstTime = true;
+  if (bFirstTime) {
+    connect(&m_webSocket
+      , SIGNAL(textMessageReceived(const QString&))
+      , SLOT(slotOnMessageSocketReceived(const QString&)));
+    bFirstTime = false;
+  }
   // authorize
-  m_SendSocketMessage("authorize", { {"authorize", m_strToken} });  
+  QString strMsg;
+  CATCH_ABORT(
+      !m_SendSocketMessage("authorize", { {"authorize", m_strToken} }, strMsg)
+    , "Error on send authorize request");
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnSocketDisconnected
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181030
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnSocketDisconnected()
+{
+  DEBUG_APP("WebSocket disconnected", "");
+  CATCH_ABORT(true
+    , "Socket has been closed");
+  emit closed();
 }
 
 /* ==========================================================================
@@ -188,12 +224,14 @@ void CAppBrokerBinary::slotOnSocketConnected()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CAppBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
+void CAppBrokerBinary::slotOnMessageSocketReceived(const QString& strMsg)
 {
   QString strMsgType = "";
   QMap<QString, QString> mapValues;
   // decode response
-  m_RecvSocketMessage(strMsg, strMsgType, mapValues);
+  CATCH_ABORT(
+      !m_RecvSocketMessage(strMsg, strMsgType, mapValues)
+    , "Error on decode received socket message"); 
   //m_webSocket.close();
 }
 
@@ -207,37 +245,10 @@ void CAppBrokerBinary::slotOnMessageSocketReceived(QString strMsg)
  * ========================================================================== */
 void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
-  QString strMsg = message.string;
-  DEBUG_APP("Telegram message received", strMsg);
-  CATCH_ABORT(!m_HistoryInsert({
-      {"operation" , "TBOT RECV"}
-    , {"parameters", strMsg}
-    , {"details"   , strMsg} })
-    , "Unable to insert history record on database");
-#if 0 //APP_BROKER_BINARY_DEBUG == 1
-  QDateTime dt = QDateTime::currentDateTime();
-  qDebug() << "===============================================================";
-  qDebug() << dt.toString();
-  //qDebug() << "new message:" << message;
-  qDebug() << "       text:" << strMsg;
-  //GBP USD CALL 5 MIN WAIT CONFIRM
-  //USD CHF CALL 5 MIN WAIT CONFIRM
-  //GO
-  //NO
-  if (strMessage.endsWith("WAIT CONFIRM")) {
-    QString strChangeFrom = strMsg.mid(0,3);
-    QString strChangeTo   = strMsg.mid(4,3);
-    qDebug() << "Broker attendi conferma " 
-      << strChangeFrom << "->" << strChangeTo 
-      << " ...";
-  }
-  else if (strMsg == "GO") {
-    qDebug() << "Broker SCOMMETTI ORA! ";
-  }
-  else if (strMsg == "NO") {
-    qDebug() << "Broker NON SCOMMETTERE! ";
-  }
-#endif
+  // decode telegram message
+  CATCH_ABORT(
+      !m_RcvTelegramMessage(message.string)
+    , "Error on decode received telegram message"); 
 }
 
 /* ==========================================================================
@@ -296,6 +307,30 @@ void CAppBrokerBinary::slotOnDbConnected()
     , "Unable to load session list from database");
   /* Open sockect connection */
   CATCH_ABORT(!m_OpenSocket(), "Unable to open socket connection");
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_statusUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181030
+ *              AUTHORS: Michele Iacobellis
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_StatusUpdate(Status status)
+{
+  m_status = status;
+  switch (m_status)
+  {
+  case Status::kINITIALIZE: uiMain->statusbar->showMessage("INITIALIZE");
+    break;
+  case Status::kAUTHORIZED: uiMain->statusbar->showMessage("AUTHORIZED");
+    break;
+  case Status::kWAITFORCON: uiMain->statusbar->showMessage("WAIT FOR CONFIRM");
+    break;
+  case Status::kPROPOSALGO: uiMain->statusbar->showMessage("PROPOSAL GO");
+    break;
+  }
 }
 
 /* ==========================================================================
@@ -465,6 +500,7 @@ bool CAppBrokerBinary::m_DbCreateTable()
         , operation text NOT NULL \
         , state text \
         , balance text \
+        , currency text \
         , parameters text \
         , details text \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -556,6 +592,7 @@ bool CAppBrokerBinary::m_HistoryRelaod(bool bForceResize)
     << false //operation
     << false //state
     << false //balance
+    << false //currency
     << false //parameters
     << true; //details    
   if (bHideColumns)
@@ -602,10 +639,8 @@ bool CAppBrokerBinary::m_OpenSocket()
   static bool bFirstTime = true;
   if (bFirstTime) {
     /* Connect signals and slots for socket */
-    connect(&m_webSocket, &QWebSocket::connected   , this
-      , &CAppBrokerBinary::slotOnSocketConnected);
-    connect(&m_webSocket, &QWebSocket::disconnected, this
-      , &CAppBrokerBinary::closed);
+    connect(&m_webSocket, SIGNAL(connected()),   SLOT(slotOnSocketConnected()));
+    connect(&m_webSocket, SIGNAL(disconnected()),SLOT(slotOnSocketConnected()));
     /* Start bot */
     CATCH_ABORT(!m_BotStart(), "Unable to start Telegram Bot");
     bFirstTime = false;
@@ -626,13 +661,15 @@ bool CAppBrokerBinary::m_HistoryInsert(const QMap<QString,QString>& mapValues)
 {
   RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
       "INSERT INTO history (\
-        session_id, date_time, operation, state, balance, parameters, details) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7')")
+        session_id, date_time, operation, state, balance, currency, parameters\
+        , details) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8')")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("operation"))
       .arg(mapValues.value("state"))
       .arg(ui->leBalance->text())
+      .arg(ui->labelCurrency->text())
       .arg(mapValues.value("parameters"))
       .arg(mapValues.value("details")))
     , "Unable to insert history record"
@@ -666,6 +703,79 @@ bool CAppBrokerBinary::m_BotStart()
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: m_RcvTelegramMessage
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181030
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
+{
+  DEBUG_APP("Telegram message received", strMsg);
+  RETURN_IFW(!m_HistoryInsert({
+      {"operation" , "TBOT RECV"}
+    , {"parameters", strMsg}
+    , {"details"   , strMsg} })
+    , "Unable to insert history record on database", false);
+  //GBP USD CALL 5 MIN WAIT CONFIRM
+  //USD CHF CALL 5 MIN WAIT CONFIRM
+  //GO
+  //NO
+  QString strMsgSockSend;
+  if      (strMsg.endsWith("WAIT CONFIRM")) {
+    QStringList list = strMsg.split(" ");
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW(list.count() < 7, "WAIT CONFIRM request malformed", true);
+    QString strFrxA = list.at(0);
+    QString strFrxB = list.at(1);
+    QString strContractType = list.at(2);
+    QString strDuration = list.at(3);
+    QString strDurationUnit = list.at(4);
+    // proposal
+    RETURN_IFW(!m_SendSocketMessage("proposal"
+        , { 
+              {"amout",         QString::number(ui->dsbProposal->value())} 
+            , {"contract_type", strContractType}
+            , {"currency"     , ui->labelCurrency->text()}
+            , {"duration"     , strDuration}
+            , {"duration_unit", strDurationUnit == "MIN" ? "m" : "m"}
+            , {"symbol"       , QString("frx%1%2").arg(strFrxA).arg(strFrxB)}
+          }
+        , strMsgSockSend)
+      , "Error on send proposal request", false);
+  }
+  else if (strMsg == "GO") {
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW(Status::kWAITFORCON != m_status
+      , "Cannot place proposal in this status", true);
+    RETURN_IFW(m_strIdProposal.isEmpty()
+      , "Cannot place proposal beacause id is empty", true);
+    RETURN_IFW(m_strContractType != "CALL" && m_strContractType != "PUT"
+      , "Cannot place proposal beacause type isn't CALL or PUT", true);
+    RETURN_IFW(m_strPrice.isEmpty()
+      , "Cannot place proposal beacause price is empty", true);
+    // buy/sell
+    QString strBuySell = m_strContractType == "CALL" ? "buy" : "sell";
+    RETURN_IFW(!m_SendSocketMessage(strBuySell
+        , { 
+              {strBuySell, m_strIdProposal} 
+            , {"price"   , m_strPrice}
+          }
+        , strMsgSockSend)
+      , "Error on send proposal request", false);
+  }
+  else if (strMsg == "NO") {
+    // Reset status
+    m_strIdProposal = "";
+    m_strContractType = "";
+    m_strPrice = "";
+    m_StatusUpdate(Status::kAUTHORIZED);
+  }
+  return true;
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: m_SendSocketMessage
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181019
@@ -673,19 +783,65 @@ bool CAppBrokerBinary::m_BotStart()
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
-  , const QMap<QString,QString>& mapValues)
+bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
+  , const QMap<QString,QString>& mapValues, QString& strMsg)
 {
-  QString strMsg;
+  strMsg = "";
   // Prepare Send in JSon format
-  if ("authorize" == strMsgType) {
-    strMsg = QStringLiteral("{\"authorize\": \"%1\"}")
+  if      ("authorize" == strMsgType) {
+    /* authorize */
+    strMsg = QStringLiteral(
+      "{                     \
+        \"authorize\": \"%1\"\
+       }")
       .arg(mapValues.value("authorize"));
   }
+  else if ("proposal" == strMsgType) {
+    /* proposal */
+    strMsg = QStringLiteral(
+      "{                          \
+        \"proposal\": 1,          \
+        \"amount\": \"%1\",       \
+        \"basis\": \"stake\",     \
+        \"contract_type\":\"%2\", \
+        \"currency\": \"%3\",     \
+        \"duration\": \"%4\",     \
+        \"duration_unit\": \"%5\",\
+        \"symbol\": \"%6\"        \
+       }")
+      .arg(mapValues.value("amout"))
+      .arg(mapValues.value("contract_type"))
+      .arg(mapValues.value("currency"))
+      .arg(mapValues.value("duration"))
+      .arg(mapValues.value("duration_unit"))
+      .arg(mapValues.value("symbol"));
+    // store contract_type to send buy (CALL) or sell (PUT) request
+    m_strContractType = mapValues.value("contract_type");
+    m_strPrice = mapValues.value("amout");
+  }
+  else if ("buy" == strMsgType) {
+    /* proposal */
+    strMsg = QStringLiteral(
+      "{                          \
+        \"buy\": \"%1\",          \
+        \"price\": %2             \
+       }")
+      .arg(mapValues.value("buy"))
+      .arg(mapValues.value("price"));
+  }
+  else if ("sell" == strMsgType) {
+    /* proposal */
+    strMsg = QStringLiteral(
+      "{                          \
+        \"sell\": \"%1\",         \
+        \"price\": %2             \
+       }")
+      .arg(mapValues.value("buy"))
+      .arg(mapValues.value("price"));
+  }
   else {
-    WARNING_APP(
-        QString("Send message socket %1").arg(strMsgType)
-      , QString("%1 is unrecognized").arg(strMsgType));
+    RETURN_IFW(true, QString("Message type %1 is unrecognized").arg(strMsgType)
+      , false);    
   }
   // Send
   if (!strMsg.isEmpty()) {
@@ -695,14 +851,14 @@ QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       strParameters.append(QString("%1=%2, ")
         .arg(str).arg(mapValues.value(str)));
     }
-    CATCH_ABORT(!m_HistoryInsert({
+    RETURN_IFW(!m_HistoryInsert({
         {"operation" , "SOCK SEND"}
       , {"parameters", strParameters}
       , {"details"   , strMsg} })
-      , "Unable to insert history record on database");
+      , "Unable to insert history record on database", false);
     m_webSocket.sendTextMessage(strMsg);
   }
-  return strMsg;
+  return true;
 }
 
 /* ==========================================================================
@@ -713,24 +869,24 @@ QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
+bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   , QString& strMsgType, QMap<QString, QString>& mapValues)
 {
   DEBUG_APP("Recv message socket", strMsg);
   // Parsing JSON
   QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
-  RETURN_IFW(doc.isNull(), "JsonDocument is null", );
-  RETURN_IFW(!doc.isObject(), "JsonObject is null", );
+  RETURN_IFW(doc.isNull(), "JsonDocument is null", false);
+  RETURN_IFW(!doc.isObject(), "JsonObject is null", false);
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
     QString msg__error__code;
     RETURN_IFW(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
-      , "JSonValue 'code' doesn't exist", );
+      , "JSonValue 'code' doesn't exist", false);
     QString msg__error__message;
     RETURN_IFW(!m_JSonValueStr(msg__error, "message", msg__error__message)
-      , "JSonValue 'message' doesn't exist", );
+      , "JSonValue 'message' doesn't exist", false);
     WARNING_APP("Binary return error", QString("code [%1] error[%2]")
       .arg(msg__error__code).arg(msg__error__message));
     strMsgType = "error";
@@ -740,19 +896,72 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   else
   { /* DECODE RESPONSE based on msg_type */
     RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType)
-      , "JSonValue 'msg_type' doesn't exist", );
-    if ("authorize" == strMsgType) 
+      , "JSonValue 'msg_type' doesn't exist", false);
+    if      ("authorize" == strMsgType) 
     { /* First message to authorize application */
       QJsonObject msg__authorize;
       RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize)
-        , "JSonObject 'authorize' doesn't exist", );
+        , "JSonObject 'authorize' doesn't exist", false);
       QString msg__authorize__balance;
       RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
         , msg__authorize__balance)
-        , "JSonValue 'balance' doesn't exist", );
-      INFO_APP("balance:", msg__authorize__balance);
+        , "JSonValue 'balance' doesn't exist", false);
+      QString msg__authorize__currency;
+      RETURN_IFW(!m_JSonValueStr(msg__authorize, "currency"
+        , msg__authorize__currency)
+        , "JSonValue 'currency' doesn't exist", false);
+      INFO_APP("balance:", msg__authorize__currency);
       ui->leBalance->setText(msg__authorize__balance);
+      ui->labelCurrency->setText(msg__authorize__currency);
       mapValues.insert("balance", msg__authorize__balance);
+      mapValues.insert("currency", msg__authorize__currency);
+      /* Update Status: AUTHORIZED */
+      m_StatusUpdate(Status::kAUTHORIZED);
+    }
+    else if ("proposal" == strMsgType) 
+    { /* Proposal wait feedback */
+      QJsonObject msg__authorize;
+      RETURN_IFW(!m_JSonObject(msg, "proposal", msg__authorize)
+        , "JSonObject 'proposal' doesn't exist", false);
+      QString msg__proposal__id;
+      RETURN_IFW(!m_JSonValueStr(msg__authorize, "id"
+        , msg__proposal__id)
+        , "JSonValue 'id' doesn't exist", false);
+      INFO_APP("id proposal:", msg__proposal__id);
+      mapValues.insert("id", msg__proposal__id);
+      /* Update Status: WAIT FOR CONFIRM */
+      m_strIdProposal = msg__proposal__id;
+      m_StatusUpdate(Status::kWAITFORCON);
+    }
+    else if ("buy" == strMsgType) 
+    { /* Buy wait feedback */
+      QJsonObject msg__buy;
+      RETURN_IFW(!m_JSonObject(msg, "buy", msg__buy)
+        , "JSonObject 'buy' doesn't exist", false);
+      QString msg__buy__balance_after;
+      RETURN_IFW(!m_JSonValueStr(msg__buy, "balance_after"
+        , msg__buy__balance_after)
+        , "JSonValue 'balance_after' doesn't exist", false);
+      INFO_APP("balance_after proposal:", msg__buy__balance_after);
+      mapValues.insert("balance_after", msg__buy__balance_after);
+      ui->leBalance->setText(msg__buy__balance_after);
+      /* Update Status: AUTHORIZED */
+      m_StatusUpdate(Status::kAUTHORIZED);
+    }
+    else if ("sell" == strMsgType) 
+    { /* Sell wait feedback */
+      QJsonObject msg__sell;
+      RETURN_IFW(!m_JSonObject(msg, "sell", msg__sell)
+        , "JSonObject 'sell' doesn't exist", false);
+      QString msg__sell__balance_after;
+      RETURN_IFW(!m_JSonValueStr(msg__sell, "balance_after"
+        , msg__sell__balance_after)
+        , "JSonValue 'balance_after' doesn't exist", false);
+      INFO_APP("balance_after proposal:", msg__sell__balance_after);
+      mapValues.insert("balance_after", msg__sell__balance_after);      
+      ui->leBalance->setText(msg__sell__balance_after);
+      /* Update Status: AUTHORIZED */
+      m_StatusUpdate(Status::kAUTHORIZED);
     }
   }
   QString strParameters = QString("%1: ").arg(strMsgType);
@@ -760,11 +969,12 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     strParameters.append(QString("%1=%2, ")
       .arg(str).arg(mapValues.value(str)));
   }
-  CATCH_ABORT(!m_HistoryInsert({
+  RETURN_IFW(!m_HistoryInsert({
       {"operation" , "SOCK RECV"}
     , {"parameters", strParameters}
     , {"details"   , strMsg} })
-    , "Unable to insert history record on database");
+    , "Unable to insert history record on database", false);
+  return true;
 }
 
 /* ==========================================================================
