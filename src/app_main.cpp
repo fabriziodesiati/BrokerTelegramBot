@@ -60,8 +60,11 @@
  * ========================================================================== */
 int main(int argc,char* argv[])
 {
+  /* Load settings */
+  QSettings s(HMI_COMPANY, HMI_TITLE);
   QString strCfgFilePath = "./etc/BrokerTelegramBot_default.cfg";
   QString strDbFilePath = "./db/BrokerTelegramBot.sqlite";
+  QString strTheme;
   QString strAppIdBroker;
   QString strTokenBroker;
   QString strTokenBot;
@@ -69,6 +72,7 @@ int main(int argc,char* argv[])
   QMap<QString,QString*> mapArgs = {
       {"--cfg"          , &strCfgFilePath}
     , {"--db"           , &strDbFilePath }
+    , {"--theme"        , &strTheme      }
     , {"--app_id-broker", &strAppIdBroker}
     , {"--token-broker" , &strTokenBroker}
     , {"--token-bot"    , &strTokenBot   }
@@ -76,12 +80,20 @@ int main(int argc,char* argv[])
   };
   for (auto j = 0; j < argc; ++j) {
     QString strArgName = argv[j];
-    if (mapArgs.contains(strArgName)) {
+    if      ("--clear" == strArgName) {
+      /* Clear settings */
+      s.clear();
+    }
+    else if (mapArgs.contains(strArgName)) {
       const char* pStr = argv[++j];
       CATCH_ABORT(nullptr == pStr
         , QString("arg %1 requires a value").arg(strArgName));
       *mapArgs.value(strArgName) = pStr;
     }
+  }
+  /* Update theme settings */
+  if (!strTheme.isEmpty()) {
+    s.setValue("gui_theme", strTheme);
   }
   /* Load configuration if exists */
   if (CAppConfiguration::GetInstance().load(strCfgFilePath)) {

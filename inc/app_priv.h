@@ -25,6 +25,12 @@
 # include "BrokerTelegramBot_config.h"
 #endif
 
+/* ==========================================================================
+ * MACROS
+ * ========================================================================== */
+#define HMI_COMPANY "FDS"
+#define HMI_TITLE   "BrokerTelegramBot"
+
 #ifdef _MSC_VER
 # define THIS __FUNCTION__
 #else

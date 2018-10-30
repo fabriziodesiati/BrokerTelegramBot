@@ -79,6 +79,7 @@ public slots:
   void slotOnMessageSocketReceived(QString message);
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
+  void slotOnLookApply(const QString&);
 
 protected slots:
   void slotOnDbConnected();
@@ -102,6 +103,7 @@ private:
   int64_t m_i64SessionIdSelected;
   QWebSocket m_webSocket;
 
+  void m_LookApply(const QString&);
   bool m_DbCreateTable();
   int64_t m_SessionCreate();
   bool m_ComboSessionLoad();

@@ -22,6 +22,8 @@
  * ========================================================================== */
 #include "app_broker_binary.h"
 #include "app_database.h"
+#include <QSettings>
+#include <QStyleFactory>
 #include <QSqlQuery>
 #include "ui_wdgmain.h"
 #include "ui_wdgcentral.h"
@@ -114,6 +116,11 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   /* Setup user interface */
   uiMain->setupUi(this);
 
+  /* Hide controls */
+  uiMain->menubar->setVisible(false);
+  uiMain->statusbar->setVisible(false);
+  uiMain->toolBar->setVisible(false);
+
   setCentralWidget(&m_wdgCentral);
   ui = m_wdgCentral.getUi();
 
@@ -127,6 +134,20 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->comboSession
     , SIGNAL(currentTextChanged(const QString&))
     , SLOT(slotOnComboSessionsCurrentTextChanged(const QString&)));
+  connect(ui->cbLookApply
+    , SIGNAL(currentTextChanged(QString))
+    , SLOT(slotOnLookApply(QString)));
+
+  /* Apply theme settings */
+  QSettings s(HMI_COMPANY, HMI_TITLE);
+  auto strTheme = s.value("gui_theme").toString();
+  QString strCurrTextPrev = ui->cbLookApply->currentText();
+  ui->cbLookApply->setCurrentText(
+    (-1 != ui->cbLookApply->findText(strTheme))?strTheme:"Darkino");
+  // Force look apply if combo text is unchanged (first time)
+  if (strCurrTextPrev == ui->cbLookApply->currentText()) {
+    slotOnLookApply(strCurrTextPrev);
+  }
 }
 
 /* ==========================================================================
@@ -188,7 +209,7 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
   QString strMsg = message.string;
   DEBUG_APP("Telegram message received", strMsg);
-  CATCH_ABORT(m_HistoryInsert({
+  CATCH_ABORT(!m_HistoryInsert({
       {"operation" , "TBOT RECV"}
     , {"parameters", strMsg}
     , {"details"   , strMsg} })
@@ -241,6 +262,21 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnLookApply
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181030
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnLookApply(const QString& strLook)
+{
+  QSettings s(HMI_COMPANY, HMI_TITLE);
+  s.setValue("gui_theme", strLook);
+  m_LookApply(QString("Fusion::%1").arg(strLook));
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnDbConnected
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -263,6 +299,147 @@ void CAppBrokerBinary::slotOnDbConnected()
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: m_LookApply
+ * FUNCTION DESCRIPTION: apply look and theme
+ *        CREATION DATE: 20181030
+ *              AUTHORS: Michele Iacobellis
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_LookApply(const QString& strTheme)
+{
+  if (!strTheme.isEmpty())
+  {
+    QString strQtTheme;
+    QString strPkCustm;
+
+    QStringList sl = strTheme.split("::");
+    if (sl.count() >= 2)
+    {
+      strQtTheme = sl.at(0);
+      strPkCustm = sl.at(1);
+    }
+
+    /* Setup style */
+    qApp->setStyle(QStyleFactory::create(strQtTheme));
+
+    /* Configure theme */
+    if ("Dark" == strPkCustm)
+    {
+      QPalette palette;
+      palette.setColor(QPalette::Window, QColor(53, 53, 53));
+      palette.setColor(QPalette::WindowText, Qt::white);
+      palette.setColor(QPalette::Base, QColor(25, 25, 25));
+      palette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+      palette.setColor(QPalette::ToolTipBase, Qt::white);
+      palette.setColor(QPalette::ToolTipText, Qt::white);
+      palette.setColor(QPalette::Text, Qt::white);
+      palette.setColor(QPalette::Button, QColor(53, 53, 53));
+      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::ButtonText, Qt::white);
+      palette.setColor(QPalette::Disabled, QPalette::ButtonText, Qt::lightGray);
+      palette.setColor(QPalette::BrightText, Qt::red);
+      palette.setColor(QPalette::Link, QColor(42, 130, 218));
+      palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+      palette.setColor(QPalette::HighlightedText, Qt::black);
+      qApp->setPalette(palette);
+      qApp->setStyleSheet(
+        "QToolTip { color: #ffffff; "
+        "background-color: #2a82da; border: 1px solid white; }");
+    }
+    else if ("Darkino" == strPkCustm)
+    {
+      QPalette palette;
+      palette.setColor(QPalette::Window, QColor(100, 100, 100));
+      palette.setColor(QPalette::WindowText, Qt::white);
+      palette.setColor(QPalette::Base, QColor(53, 53, 53));
+      palette.setColor(QPalette::AlternateBase, QColor(83, 83, 83));
+      palette.setColor(QPalette::ToolTipBase, Qt::white);
+      palette.setColor(QPalette::ToolTipText, Qt::white);
+      palette.setColor(QPalette::Text, Qt::white);
+      palette.setColor(QPalette::Button, QColor(100, 100, 100));
+      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::ButtonText, Qt::white);
+      palette.setColor(QPalette::Disabled, QPalette::ButtonText, Qt::lightGray);
+      palette.setColor(QPalette::BrightText, Qt::red);
+      palette.setColor(QPalette::Link, QColor(42, 130, 218));
+      palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+      palette.setColor(QPalette::HighlightedText, Qt::black);
+      qApp->setPalette(palette);
+      qApp->setStyleSheet(
+        "QToolTip { color: #ffffff; "
+        "background-color: #2a82da; border: 1px solid white; }");
+    }
+    else if ("Mountain" == strPkCustm)
+    {
+      QPalette palette;
+      palette.setColor(QPalette::Window, QColor(0x90, 0xAF, 0xC5));
+      palette.setColor(QPalette::WindowText, QColor(0x76, 0x36, 0x26));
+      palette.setColor(QPalette::Base, QColor(0x33, 0x6B, 0x87));
+      palette.setColor(QPalette::AlternateBase, QColor(0x2A, 0x31, 0x32));
+      palette.setColor(QPalette::ToolTipBase, Qt::blue);
+      palette.setColor(QPalette::ToolTipText, Qt::white);
+      palette.setColor(QPalette::Text, Qt::white);
+      palette.setColor(QPalette::Button, QColor(0x90, 0xAF, 0xC5));
+      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::ButtonText, QColor(0x76, 0x36, 0x26));
+      palette.setColor(QPalette::BrightText, Qt::red);
+      palette.setColor(QPalette::Link, QColor(42, 130, 218));
+      palette.setColor(QPalette::Highlight, QColor(0x76, 0x36, 0x26));
+      palette.setColor(QPalette::HighlightedText, Qt::white);
+      qApp->setPalette(palette);
+      qApp->setStyleSheet(
+        "QToolTip { color: #ffffff; "
+        "background-color: #2a82da; border: 1px solid white; }");
+    }
+    else if ("Desert" == strPkCustm)
+    {
+      QPalette palette;
+      palette.setColor(QPalette::Window, QColor(0xA4, 0x38, 0x20));
+      palette.setColor(QPalette::WindowText, Qt::white);
+      palette.setColor(QPalette::Base, QColor(0xA4, 0x38, 0x20));
+      palette.setColor(QPalette::AlternateBase, QColor(0xBA, 0x55, 0x36));
+      palette.setColor(QPalette::ToolTipBase, Qt::blue);
+      palette.setColor(QPalette::ToolTipText, Qt::white);
+      palette.setColor(QPalette::Text, Qt::white);
+      palette.setColor(QPalette::Button, QColor(0xBA, 0x55, 0x36));
+      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::ButtonText, Qt::white);
+      palette.setColor(QPalette::BrightText, Qt::red);
+      palette.setColor(QPalette::Link, QColor(42, 130, 218));
+      palette.setColor(QPalette::Highlight, QColor(0xA4, 0x38, 0x20));
+      palette.setColor(QPalette::HighlightedText, Qt::white);
+      qApp->setPalette(palette);
+      qApp->setStyleSheet(
+        "QToolTip { color: #ffffff; "
+        "background-color: #2a82da; border: 1px solid white; }");
+    }
+    else if ("Water" == strPkCustm)
+    {
+      QPalette palette;
+      palette.setColor(QPalette::Window, QColor(0x50, 0x51, 0x60));
+      palette.setColor(QPalette::WindowText, Qt::white);
+      palette.setColor(QPalette::Base, QColor(0x68, 0x82, 0x9E));
+      palette.setColor(QPalette::AlternateBase, QColor(0x50, 0x51, 0x60));
+      palette.setColor(QPalette::ToolTipBase, Qt::blue);
+      palette.setColor(QPalette::ToolTipText, Qt::white);
+      palette.setColor(QPalette::Text, Qt::white);
+      palette.setColor(QPalette::Button, QColor(0x68, 0x82, 0x9E));
+      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::ButtonText, Qt::white);
+      palette.setColor(QPalette::BrightText, Qt::red);
+      palette.setColor(QPalette::Link, QColor(42, 130, 218));
+      palette.setColor(QPalette::Highlight, QColor(0x59, 0x82, 0x34));
+      palette.setColor(QPalette::HighlightedText, Qt::white);
+      qApp->setPalette(palette);
+      qApp->setStyleSheet(
+        "QToolTip { color: #ffffff; "
+        "background-color: #2a82da; border: 1px solid white; }");
+    }
+  }
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: m_DbCreateTable
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -276,7 +453,7 @@ bool CAppBrokerBinary::m_DbCreateTable()
   RETURN_IFW(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS sessions ( \
           id integer PRIMARY KEY AUTOINCREMENT \
-        , date_time text NOT NULL UNIQUE")
+        , date_time text NOT NULL UNIQUE)")
     , "Unable to create sessions table"
     , false);
   /* Create Table history */
@@ -286,10 +463,11 @@ bool CAppBrokerBinary::m_DbCreateTable()
         , session_id NOT NULL \
         , date_time text NOT NULL \
         , operation text NOT NULL \
+        , state text \
+        , balance text \
         , parameters text \
         , details text \
-        , balance text \
-        , FOREIGN KEY(session_id) REFERENCES sessions(id)")
+        , FOREIGN KEY(session_id) REFERENCES sessions(id))")
     , "Unable to create history table"
     , false);
   return true;
@@ -306,11 +484,12 @@ bool CAppBrokerBinary::m_DbCreateTable()
 int64_t CAppBrokerBinary::m_SessionCreate()
 {
   QString strCurrentDateTime = CurrentDateTime();
-  int64_t m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
+  m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
     "INSERT INTO sessions (date_time) VALUES ('%1')").arg(strCurrentDateTime));
   RETURN_IFW(-1 == m_i64SessionId
     , "Unable to create a valid sesison id on database", false);
-  ui->leSession->setText(QString("%1: %2").arg(m_i64SessionId)
+  ui->leSession->setText(QString("%1: %2")
+     .arg(m_i64SessionId, 3, 10, QChar('0'))
     .arg(strCurrentDateTime));
   return m_i64SessionId;
 }
@@ -328,7 +507,7 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   /* Clear combo and map */
   ui->comboSession->clear();
   /* Select sessions */
-  const QString strQuery = "SELECT DISTINCT id, date_time FROM session \
+  const QString strQuery = "SELECT DISTINCT id, date_time FROM sessions \
                             ORDER BY date_time DESC";
   QSqlQuery qry;
   RETURN_IFW(!qry.exec(strQuery), QString("Unable to execute query [%1] E=%2")
@@ -337,9 +516,10 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   QStringList listItems = QStringList() << "ALL";
   QString strSelected;
   while(qry.next()) {
-    QString strComboItem = QString("%1: %2")
-      .arg(qry.value("id").toString()).arg(qry.value("date_time").toString());
     int64_t i64ComboValue = qry.value("id").toLongLong();
+    QString strComboItem = QString("%1: %2")
+      .arg(i64ComboValue, 3, 10, QChar('0'))
+      .arg(qry.value("date_time").toString());    
     listItems.append(strComboItem);
     if (i64ComboValue == m_i64SessionId) {
       strSelected = strComboItem;
@@ -374,9 +554,10 @@ bool CAppBrokerBinary::m_HistoryRelaod(bool bForceResize)
     << true  //session_id
     << false //date_time
     << false //operation
+    << false //state
+    << false //balance
     << false //parameters
-    << true  //details
-    << false;//balance
+    << true; //details    
   if (bHideColumns)
   {
     int iCol = 0;
@@ -414,10 +595,9 @@ bool CAppBrokerBinary::m_HistoryRelaod(bool bForceResize)
 bool CAppBrokerBinary::m_OpenSocket()
 {
   DEBUG_APP("WebSocket server", m_url.toString());
-  CATCH_ABORT(m_HistoryInsert({
+  CATCH_ABORT(!m_HistoryInsert({
       {"operation" , "SOCK OPEN"}
-    , {"parameters", m_url.toString()}
-    , {"details"   , m_url.toString()} })
+    , {"parameters", m_url.toString()}})
     , "Unable to insert history record on database");
   static bool bFirstTime = true;
   if (bFirstTime) {
@@ -446,20 +626,21 @@ bool CAppBrokerBinary::m_HistoryInsert(const QMap<QString,QString>& mapValues)
 {
   RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
       "INSERT INTO history (\
-        session_id, date_time, operation, parameters, details, balance) \
-      VALUES (%1,'%2',)")
+        session_id, date_time, operation, state, balance, parameters, details) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7')")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("operation"))
+      .arg(mapValues.value("state"))
+      .arg(ui->leBalance->text())
       .arg(mapValues.value("parameters"))
-      .arg(mapValues.value("details"))
-      .arg(ui->leBalance->text()))
+      .arg(mapValues.value("details")))
     , "Unable to insert history record"
     , false);
   // Reload history if session is selected (or ALL)
   RETURN_IF(
       -1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected
-    , m_HistoryRelaod());
+    , m_HistoryRelaod(true));
   return true;
 }
 
@@ -514,7 +695,7 @@ QString CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       strParameters.append(QString("%1=%2, ")
         .arg(str).arg(mapValues.value(str)));
     }
-    CATCH_ABORT(m_HistoryInsert({
+    CATCH_ABORT(!m_HistoryInsert({
         {"operation" , "SOCK SEND"}
       , {"parameters", strParameters}
       , {"details"   , strMsg} })
@@ -570,15 +751,16 @@ void CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , msg__authorize__balance)
         , "JSonValue 'balance' doesn't exist", );
       INFO_APP("balance:", msg__authorize__balance);
+      ui->leBalance->setText(msg__authorize__balance);
       mapValues.insert("balance", msg__authorize__balance);
     }
   }
   QString strParameters = QString("%1: ").arg(strMsgType);
   for(auto str: mapValues.keys()) {
     strParameters.append(QString("%1=%2, ")
-      .arg(strMsgType).arg(str).arg(mapValues.value(str)));
+      .arg(str).arg(mapValues.value(str)));
   }
-  CATCH_ABORT(m_HistoryInsert({
+  CATCH_ABORT(!m_HistoryInsert({
       {"operation" , "SOCK RECV"}
     , {"parameters", strParameters}
     , {"details"   , strMsg} })

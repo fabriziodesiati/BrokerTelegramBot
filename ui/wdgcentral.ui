@@ -58,6 +58,42 @@
       </widget>
      </item>
      <item>
+      <widget class="QLabel" name="labelTheme">
+       <property name="text">
+        <string>Theme:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="cbLookApply">
+       <item>
+        <property name="text">
+         <string>Dark</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Darkino</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Desert</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Mountain</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Water</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontalSpacer_2">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
@@ -100,9 +136,9 @@
       </spacer>
      </item>
      <item>
-      <widget class="QLabel" name="labelBalance">
+      <widget class="QLabel" name="labelProposal">
        <property name="text">
-        <string>Balance:</string>
+        <string>Proposal:</string>
        </property>
       </widget>
      </item>
@@ -114,9 +150,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="labelProposal">
+      <widget class="QLabel" name="labelBalance">
        <property name="text">
-        <string>Proposal:</string>
+        <string>Balance:</string>
        </property>
       </widget>
      </item>
