@@ -63,7 +63,13 @@ public:
       kINITIALIZE
     , kAUTHORIZED
     , kWAITFORCON
-    , kPROPOSALGO
+  };
+
+  struct sProposalInfo {
+    QString strProposalId;
+    QString strContractId;
+    QString strContractType;
+    QString strPrice;
   };
 
   static QString CurrentDateTime();
@@ -115,15 +121,13 @@ private:
   QString m_strToken;
   QString m_strTokenBot;  
 
+  bool m_bFirstAuthorized;
   QString m_strBalanceStart;
   int64_t m_i64SessionId;
   int64_t m_i64SessionIdSelected;
-  int64_t m_i64LastHistory;
-  int64_t m_i64LastProposal;
   
-  QString m_strIdProposal;
-  QString m_strContractType;
-  QString m_strPrice;
+  int64_t m_i64LastIdProposal;
+  QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
 
   void m_StatusUpdate(Status);
   void m_LookApply(const QString&);
@@ -133,18 +137,20 @@ private:
   int64_t m_DbSessionInsert();
   int64_t m_DbHistoryInsert(const QMap<QString,QString>&);
   int64_t m_DbProposalInsert(const QMap<QString,QString>&);
-  bool m_DbProposalUpdate(const QMap<QString,QString>&);
+  bool m_DbProposalUpdate(const QMap<QString,QString>&, const int64_t&);
   bool m_ComboSessionLoad();
   bool m_SocketOpen();
   bool m_BotStart();
   void m_BalanceUpdate(const QString&);
   bool m_RcvTelegramMessage(const QString&);
-  bool m_SendSocketMessage(const QString&, const QMap<QString,QString>&
+  bool m_SendSocketMessage(const QString&
+    , const QMap<QString,QString>& = QMap<QString,QString>()
     , QString& = QString());
   bool m_RecvSocketMessage(const QString&, QString& = QString()
     , QMap<QString,QString>& = QMap<QString,QString>());
   bool m_JSonObject(const QJsonObject&, const QString&, QJsonObject&);
   bool m_JSonValueStr(const QJsonObject&, const QString&, QString&);
+  int64_t m_i64IdProposalByInfo(const QString&, const QString&);
 };
 
 #endif // APP_BROKER_BINARY_H
