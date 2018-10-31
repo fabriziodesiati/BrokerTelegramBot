@@ -34,6 +34,81 @@
  * ========================================================================== */
 #define APP_DEBUG 1
 
+/**
+ * Calls the wdg/message handler with the debug function/message.
+ */
+#define DEBUG_APP_WDG(strFunc,strMsg)\
+  do { \
+  ui->lblInfo->setText(QString("[DEBUG] %1: %2").arg(strFunc).arg(strMsg)); \
+  DEBUG_APP(strFunc,strMsg); \
+  } while (false)
+
+/**
+ * Calls the wdg/message handler with the info function/message.
+ */
+#define INFO_APP_WDG(strFunc,strMsg)\
+  do { \
+  ui->lblInfo->setText(QString("[INFO] %1: %2").arg(strFunc).arg(strMsg)); \
+  INFO_APP(strFunc,strMsg); \
+  } while (false)
+
+/**
+ * Calls the wdg/message handler with the warning function/message.
+ */
+#define WARNING_APP_WDG(strFunc,strMsg)\
+  do { \
+  ui->lblInfo->setText(QString("[WARNING] %1: %2").arg(strFunc).arg(strMsg)); \
+  WARNING_APP(strFunc,strMsg); \
+  } while (false)
+
+/**
+ * Calls the wdg/message handler with the critical function/message.
+ */
+#define CRITICAL_APP_WDG(strFunc,strMsg)\
+  do { \
+  ui->lblInfo->setText(QString("[CRITIAL] %1: %2").arg(strFunc).arg(strMsg)); \
+  CRITICAL_APP(strFunc,strMsg); \
+  } while (false)
+
+/**
+ * Macro for catching bugs on wdg.
+ */
+#define CATCH_BUG_WDG(cond,msg)\
+  do { \
+  if (cond) { \
+    ui->lblInfo->setText(QString("[CATCH_BUG] %1 @%2: %3 (C=%4)") \
+      .arg(THIS).arg(__LINE__).arg(#msg).arg(#cond)); \
+    ui->lblInfo->setStyleSheet("QLabel { background-color : red; }"); \
+    QEventLoop loop; loop.processEvents(); \
+    CATCH_BUG(cond,msg); \
+  }} while (false)
+
+/**
+ * Macro for aborting instantaneously on wdg.
+ */
+#define CATCH_ABORT_WDG(cond,msg)\
+  do { \
+  if (cond) { \
+    ui->lblInfo->setText(QString("[CATCH_ABORT] %1 @%2: %3 (C=%4)") \
+      .arg(THIS).arg(__LINE__).arg(#msg).arg(#cond)); \
+    ui->lblInfo->setStyleSheet("QLabel { background-color : red; }"); \
+    QEventLoop loop; loop.processEvents(); \
+    CATCH_ABORT(cond,msg); \
+  }} while (false)
+
+/**
+ * Use this macro for early-exit on input parameter validation on wdg.
+ */
+#define RETURN_IFW_WDG(cond,msg,c)\
+  do { \
+  if (cond) { \
+    QString strFunc = QString("%1 @%2").arg(THIS).arg(__LINE__); \
+    QString strMsg = QString("%1 (C=%2, ret=%3)").arg(#msg).arg(#cond).arg(#c);\
+    WARNING_APP_WDG(strFunc,strMsg); \
+    return c; \
+  }} while (false)
+
+
 /* ==========================================================================
  * MODULE TAGGING
  * ========================================================================== */
@@ -107,13 +182,15 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_strAppId             {              app_id }
 , m_strToken             {               token }
 , m_strTokenBot          {            tokenBot }
+, m_strBalanceStart      {                  "" }
 , m_i64SessionId         {                  -1 }
 , m_i64SessionIdSelected {                  -1 }
+, m_i64LastHistory       {                  -1 }
+, m_i64LastProposal      {                  -1 }
 , m_strIdProposal        {                  "" }
 , m_strContractType      {                  "" }
 , m_strPrice             {                  "" }
 {
-  DEBUG_APP("Starting Broker Binary ...", "");
   /* Set URL */
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
     .arg(m_strAppId));
@@ -129,8 +206,12 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   setCentralWidget(&m_wdgCentral);
   ui = m_wdgCentral.getUi();
 
+  /* START FRM HERE TO USE XXX_WDG MACROs */
+  DEBUG_APP_WDG("Starting Broker Binary ...", "");
+  
   /* Connect model */
-  ui->tbHistory->setModel(&m_model);
+  ui->tbHistory->setModel(&m_modelHistory);
+  ui->tbProposals->setModel(&m_modelProposals);
 
   /* connect signals and slots */
   connect(&CAppDatabase::GetInstance()
@@ -142,6 +223,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->cbLookApply
     , SIGNAL(currentTextChanged(QString))
     , SLOT(slotOnLookApply(QString)));
+  connect(ui->pbBalance
+    , SIGNAL(clicked())
+    , SLOT(slotOnBalanceClicked()));
 
   /* Apply theme settings */
   QSettings s(HMI_COMPANY, HMI_TITLE);
@@ -185,7 +269,7 @@ CAppBrokerBinary::~CAppBrokerBinary()
  * ========================================================================== */
 void CAppBrokerBinary::slotOnSocketConnected()
 {
-  DEBUG_APP("WebSocket connected", "");
+  DEBUG_APP_WDG("WebSocket connected", "");
   static bool bFirstTime = true;
   if (bFirstTime) {
     connect(&m_webSocket
@@ -193,11 +277,7 @@ void CAppBrokerBinary::slotOnSocketConnected()
       , SLOT(slotOnMessageSocketReceived(const QString&)));
     bFirstTime = false;
   }
-  // authorize
-  QString strMsg;
-  CATCH_ABORT(
-      !m_SendSocketMessage("authorize", { {"authorize", m_strToken} }, strMsg)
-    , "Error on send authorize request");
+  slotOnBalanceClicked();  
 }
 
 /* ==========================================================================
@@ -210,10 +290,10 @@ void CAppBrokerBinary::slotOnSocketConnected()
  * ========================================================================== */
 void CAppBrokerBinary::slotOnSocketDisconnected()
 {
-  DEBUG_APP("WebSocket disconnected", "");
-  CATCH_ABORT(true
-    , "Socket has been closed");
-  emit closed();
+  DEBUG_APP_WDG("WebSocket disconnected", "");
+  // Reconnect socket
+  CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
+  //emit closed();
 }
 
 /* ==========================================================================
@@ -226,13 +306,9 @@ void CAppBrokerBinary::slotOnSocketDisconnected()
  * ========================================================================== */
 void CAppBrokerBinary::slotOnMessageSocketReceived(const QString& strMsg)
 {
-  QString strMsgType = "";
-  QMap<QString, QString> mapValues;
   // decode response
-  CATCH_ABORT(
-      !m_RecvSocketMessage(strMsg, strMsgType, mapValues)
-    , "Error on decode received socket message"); 
-  //m_webSocket.close();
+  CATCH_ABORT_WDG(!m_RecvSocketMessage(strMsg)
+    , "Error on decode received socket message");
 }
 
 /* ==========================================================================
@@ -246,8 +322,7 @@ void CAppBrokerBinary::slotOnMessageSocketReceived(const QString& strMsg)
 void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
   // decode telegram message
-  CATCH_ABORT(
-      !m_RcvTelegramMessage(message.string)
+  CATCH_ABORT_WDG(!m_RcvTelegramMessage(message.string)
     , "Error on decode received telegram message"); 
 }
 
@@ -266,10 +341,10 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
   RETURN_IF(strSelectedSession.isEmpty(), );  
   if ("ALL" != strSelectedSession) {
     auto list = strSelectedSession.split(":");
-    CATCH_BUG(list.count() < 2, "ComboBox for sessions is malformed");
+    CATCH_BUG_WDG(list.count() < 2, "ComboBox for sessions is malformed");
     m_i64SessionIdSelected = strSelectedSession.split(":").at(0).toLongLong();
   }
-  CATCH_ABORT(!m_HistoryRelaod(true), "Cannot reload history from database");
+  CATCH_ABORT_WDG(!m_DbHistoryRelaod(true), "Cannot reload history from database");
 }
 
 /* ==========================================================================
@@ -288,6 +363,22 @@ void CAppBrokerBinary::slotOnLookApply(const QString& strLook)
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnBalanceClicked
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnBalanceClicked()
+{
+  // authorize
+  CATCH_ABORT_WDG(
+      !m_SendSocketMessage("authorize", {{"authorize", m_strToken}})
+    , "Error on send authorize request");
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnDbConnected
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -298,15 +389,15 @@ void CAppBrokerBinary::slotOnLookApply(const QString& strLook)
 void CAppBrokerBinary::slotOnDbConnected()
 {
   /* Create database tables is don't exist */
-  CATCH_ABORT(!m_DbCreateTable(), "Unable to create database tables");
+  CATCH_ABORT_WDG(!m_DbCreateTables(), "Unable to create database tables");
   /* Create session on database */
-  CATCH_ABORT(-1 == m_SessionCreate()
+  CATCH_ABORT_WDG(-1 == m_DbSessionInsert()
     , "Unable to create a valid session on database");
   /* Reload combo sessions */
-  CATCH_ABORT(!m_ComboSessionLoad()
+  CATCH_ABORT_WDG(!m_ComboSessionLoad()
     , "Unable to load session list from database");
   /* Open sockect connection */
-  CATCH_ABORT(!m_OpenSocket(), "Unable to open socket connection");
+  CATCH_ABORT_WDG(!m_SocketOpen(), "Unable to open socket connection");
 }
 
 /* ==========================================================================
@@ -475,30 +566,29 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: m_DbCreateTable
+ *        FUNCTION NAME: m_DbCreateTables
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_DbCreateTable()
+bool CAppBrokerBinary::m_DbCreateTables()
 {
   /* Create Table sessions */
-  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(
+  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS sessions ( \
           id integer PRIMARY KEY AUTOINCREMENT \
         , date_time text NOT NULL UNIQUE)")
     , "Unable to create sessions table"
     , false);
   /* Create Table history */
-  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(
+  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS history ( \
           id integer PRIMARY KEY AUTOINCREMENT \
         , session_id NOT NULL \
         , date_time text NOT NULL \
         , operation text NOT NULL \
-        , state text \
         , balance text \
         , currency text \
         , parameters text \
@@ -506,30 +596,247 @@ bool CAppBrokerBinary::m_DbCreateTable()
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
     , "Unable to create history table"
     , false);
+  /* Create Table proposals */
+  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
+      "CREATE TABLE IF NOT EXISTS proposals ( \
+          id integer PRIMARY KEY AUTOINCREMENT \
+        , session_id NOT NULL \
+        , date_time text NOT NULL \
+        , contract_type text NOT NULL \
+        , symbolA text NOT NULL \
+        , symbolB text NOT NULL \
+        , amount text NOT NULL \
+        , currency text NOT NULL \
+        , state text \
+        , balance_before text \
+        , balance_after text \
+        , FOREIGN KEY(session_id) REFERENCES sessions(id))")
+    , "Unable to create proposals table"
+    , false);
   return true;
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: m_SessionCreate
+ *        FUNCTION NAME: m_DbHistoryRelaod
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-int64_t CAppBrokerBinary::m_SessionCreate()
+bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
+{
+  m_modelHistory.setQuery(
+    QString("SELECT * from history %1 ORDER BY date_time DESC")
+      .arg(-1 == m_i64SessionIdSelected ? ""
+  : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
+  /* Hide columns first time */
+  static bool bHideColumns = true;
+  static const QList<bool> listHiddenCols = QList<bool>()
+    << true  //id
+    << true  //session_id
+    << false //date_time
+    << false //operation
+    << false //balance
+    << false //currency
+    << false //parameters
+    << true; //details    
+  if (bHideColumns)
+  {
+    int iCol = 0;
+    for(auto bHidden: listHiddenCols) {
+      ui->tbHistory->setColumnHidden(iCol++, bHidden);
+    }
+    bHideColumns = false;
+  }
+  /* Resize to contents */
+  static bool bResizeToContents = true;
+  if (bForceResize) {
+    bResizeToContents = true;
+  }
+  if (bResizeToContents && m_modelHistory.rowCount() > 0)
+  { /* Reset column width based on size*/
+    for(auto iCol=0; iCol < m_modelHistory.columnCount(); ++iCol)
+    { // Resize only shown clolumns
+      if (!listHiddenCols.at(iCol)) {
+        ui->tbHistory->resizeColumnToContents(iCol);
+      }
+    }
+    bResizeToContents = false;
+  }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbProposalsRelaod
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
+{
+  m_modelProposals.setQuery(
+    QString("SELECT * from propsals ORDER BY date_time DESC"));
+  /* Hide columns first time */
+  static bool bHideColumns = true;
+  static const QList<bool> listHiddenCols = QList<bool>()
+    << true  //id
+    << true  //session_id
+    << false //contract_type
+    << false //symbolA
+    << false //symbolB
+    << false //amount
+    << false //currency
+    << false //state
+    << false //balance_before
+    << false;//balance_after
+  if (bHideColumns)
+  {
+    int iCol = 0;
+    for(auto bHidden: listHiddenCols) {
+      ui->tbProposals->setColumnHidden(iCol++, bHidden);
+    }
+    bHideColumns = false;
+  }
+  /* Resize to contents */
+  static bool bResizeToContents = true;
+  if (bForceResize) {
+    bResizeToContents = true;
+  }
+  if (bResizeToContents && m_modelHistory.rowCount() > 0)
+  { /* Reset column width based on size*/
+    for(auto iCol=0; iCol < m_modelHistory.columnCount(); ++iCol)
+    { // Resize only shown clolumns
+      if (!listHiddenCols.at(iCol)) {
+        ui->tbProposals->resizeColumnToContents(iCol);
+      }
+    }
+    bResizeToContents = false;
+  }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbSessionInsert
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_DbSessionInsert()
 {
   QString strCurrentDateTime = CurrentDateTime();
   m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
     "INSERT INTO sessions (date_time) VALUES ('%1')").arg(strCurrentDateTime));
-  RETURN_IFW(-1 == m_i64SessionId
-    , "Unable to create a valid sesison id on database", false);
+  RETURN_IFW_WDG(-1 == m_i64SessionId
+    , "Unable to create a valid session id on database", m_i64SessionId);
   ui->leSession->setText(QString("%1: %2")
      .arg(m_i64SessionId, 3, 10, QChar('0'))
     .arg(strCurrentDateTime));
   return m_i64SessionId;
 }
 
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbHistoryInsert
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181029
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_DbHistoryInsert(
+  const QMap<QString,QString>& mapValues)
+{
+  m_i64LastHistory = CAppDatabase::GetInstance().execInsertQuery(QString(
+      "INSERT INTO history (\
+        session_id, date_time, operation, balance, currency, parameters\
+        , details) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7')")
+      .arg(m_i64SessionId)
+      .arg(CurrentDateTime())
+      .arg(mapValues.value("operation"))
+      .arg(ui->pbBalance->text())
+      .arg(ui->leCurrency->text())
+      .arg(mapValues.value("parameters"))
+      .arg(mapValues.value("details")));
+  RETURN_IFW_WDG(-1 == m_i64LastHistory
+    , "Unable to insert a history entry on database", m_i64LastHistory);
+  // Reload history if session is selected (or ALL)
+  if (-1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected){
+    RETURN_IFW_WDG(!m_DbHistoryRelaod(true)
+      , "Unable to reload history from database", m_i64LastHistory);
+  }
+  return m_i64LastHistory;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbProposalInsert
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_DbProposalInsert(
+  const QMap<QString,QString>& mapValues)
+{
+  m_i64LastProposal = CAppDatabase::GetInstance().execInsertQuery(QString(
+      "INSERT INTO proposals (\
+        session_id, date_time, contract_type, symbolA, symbolB, amount\
+        , currency, state, balance_before, balance_after) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10')")
+      .arg(m_i64SessionId)
+      .arg(CurrentDateTime())
+      .arg(mapValues.value("contract_type"))
+      .arg(mapValues.value("symbolA"))
+      .arg(mapValues.value("symbolB"))
+      .arg(mapValues.value("amount"))
+      .arg(mapValues.value("currency"))
+      .arg(mapValues.value("state"))
+      .arg(mapValues.value("balance_before"))
+      .arg(mapValues.value("balance_after")));
+  RETURN_IFW_WDG(-1 == m_i64LastProposal
+    , "Unable to insert a proposal entry on database", m_i64LastProposal);
+  // Reload proposals
+  RETURN_IFW_WDG(!m_DbProposalsRelaod(true)
+    , "Unable to reload proposals from database", m_i64LastProposal);
+  return m_i64LastProposal;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbProposalUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbProposalUpdate(
+  const QMap<QString,QString>& mapValues)
+{
+  RETURN_IFW(-1 == m_i64LastProposal, "Invalid propsal to update", false);
+  QString strSetValues;
+  for (auto strFieldName: mapValues.keys()) {
+    strSetValues.append(QString("%1%2 = '%3'")
+      .arg(strSetValues.isEmpty() ? "" : ", ")
+      .arg(strFieldName)
+      .arg(mapValues.value(strFieldName)));
+  }
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
+      "UPDATE proposals SET %1 \
+       WHERE id = %2")
+      .arg(strSetValues)
+      .arg(QString::number(m_i64LastProposal)))
+    , "Unable to update proppsals table", false);
+  RETURN_IFW_WDG(-1 == m_i64LastProposal
+    , "Unable to insert a proposal entry on database", m_i64LastProposal);
+  // Reload proposals
+  return m_DbProposalsRelaod(true);
+
+}
 /* ==========================================================================
  *        FUNCTION NAME: m_ComboSessionLoad
  * FUNCTION DESCRIPTION: 
@@ -546,7 +853,7 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   const QString strQuery = "SELECT DISTINCT id, date_time FROM sessions \
                             ORDER BY date_time DESC";
   QSqlQuery qry;
-  RETURN_IFW(!qry.exec(strQuery), QString("Unable to execute query [%1] E=%2")
+  RETURN_IFW_WDG(!qry.exec(strQuery), QString("Unable to execute query [%1] E=%2")
     .arg(strQuery).arg(qry.lastError().text()), false);
   /* Add entry for ALL */
   QStringList listItems = QStringList() << "ALL";
@@ -571,68 +878,17 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: m_HistoryRelaod
+ *        FUNCTION NAME: m_SocketOpen
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
  *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_HistoryRelaod(bool bForceResize)
+bool CAppBrokerBinary::m_SocketOpen()
 {
-  m_model.setQuery(QString("SELECT * from history %2 ORDER BY date_time DESC")
-    .arg(-1 == m_i64SessionIdSelected ? ""
-                 : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
-  /* Hide columns first time */
-  static bool bHideColumns = true;
-  static const QList<bool> listHiddenCols = QList<bool>()
-    << true  //id
-    << true  //session_id
-    << false //date_time
-    << false //operation
-    << false //state
-    << false //balance
-    << false //currency
-    << false //parameters
-    << true; //details    
-  if (bHideColumns)
-  {
-    int iCol = 0;
-    for(auto bHidden: listHiddenCols) {
-      ui->tbHistory->setColumnHidden(iCol++, bHidden);
-    }
-    bHideColumns = false;
-  }
-  /* Resize to contents */
-  static bool bResizeToContents = true;
-  if (bForceResize) {
-    bResizeToContents = true;
-  }
-  if (bResizeToContents && m_model.rowCount() > 0)
-  { /* Reset column width based on size*/
-    for(auto iCol=0; iCol < m_model.columnCount(); ++iCol)
-    { // Resize only shown clolumns
-      if (!listHiddenCols.at(iCol)) {
-        ui->tbHistory->resizeColumnToContents(iCol);
-      }
-    }
-    bResizeToContents = false;
-  }
-  return true;
-}
-
-/* ==========================================================================
- *        FUNCTION NAME: m_OpenSocket
- * FUNCTION DESCRIPTION: 
- *        CREATION DATE: 20181029
- *              AUTHORS: Fabrizio De Siati
- *           INTERFACES: None
- *         SUBORDINATES: None
- * ========================================================================== */
-bool CAppBrokerBinary::m_OpenSocket()
-{
-  DEBUG_APP("WebSocket server", m_url.toString());
-  CATCH_ABORT(!m_HistoryInsert({
+  DEBUG_APP_WDG("WebSocket server", m_url.toString());
+  CATCH_ABORT_WDG(!m_DbHistoryInsert({
       {"operation" , "SOCK OPEN"}
     , {"parameters", m_url.toString()}})
     , "Unable to insert history record on database");
@@ -642,45 +898,12 @@ bool CAppBrokerBinary::m_OpenSocket()
     connect(&m_webSocket, SIGNAL(connected()),   SLOT(slotOnSocketConnected()));
     connect(&m_webSocket, SIGNAL(disconnected()),SLOT(slotOnSocketConnected()));
     /* Start bot */
-    CATCH_ABORT(!m_BotStart(), "Unable to start Telegram Bot");
+    CATCH_ABORT_WDG(!m_BotStart(), "Unable to start Telegram Bot");
     bFirstTime = false;
   }
   m_webSocket.open(QUrl(m_url));
   return true;
 }
-
-/* ==========================================================================
- *        FUNCTION NAME: m_HistoryInsert
- * FUNCTION DESCRIPTION: 
- *        CREATION DATE: 20181029
- *              AUTHORS: Fabrizio De Siati
- *           INTERFACES: None
- *         SUBORDINATES: None
- * ========================================================================== */
-bool CAppBrokerBinary::m_HistoryInsert(const QMap<QString,QString>& mapValues)
-{
-  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
-      "INSERT INTO history (\
-        session_id, date_time, operation, state, balance, currency, parameters\
-        , details) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8')")
-      .arg(m_i64SessionId)
-      .arg(CurrentDateTime())
-      .arg(mapValues.value("operation"))
-      .arg(mapValues.value("state"))
-      .arg(ui->leBalance->text())
-      .arg(ui->labelCurrency->text())
-      .arg(mapValues.value("parameters"))
-      .arg(mapValues.value("details")))
-    , "Unable to insert history record"
-    , false);
-  // Reload history if session is selected (or ALL)
-  RETURN_IF(
-      -1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected
-    , m_HistoryRelaod(true));
-  return true;
-}
-
 
 /* ==========================================================================
  *        FUNCTION NAME: m_BotStart
@@ -692,7 +915,7 @@ bool CAppBrokerBinary::m_HistoryInsert(const QMap<QString,QString>& mapValues)
  * ========================================================================== */
 bool CAppBrokerBinary::m_BotStart()
 {
-  DEBUG_APP("Starting Telegram Bot ...", "");
+  DEBUG_APP_WDG("Starting Telegram Bot ...", "");
   /* Instatiate Telegram Bot */
   delete m_pAppTelegramBot;
   m_pAppTelegramBot = new(std::nothrow) CAppTelegramBot(m_strTokenBot
@@ -700,6 +923,38 @@ bool CAppBrokerBinary::m_BotStart()
   connect(m_pAppTelegramBot,  &Telegram::Bot::message
     , this, &CAppBrokerBinary::slotOnMessageTelegramBot);
   return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_BalanceUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_BalanceUpdate(const QString& strNewValue)
+{
+  QString strOldValue = ui->pbBalance->text();
+  ui->pbBalance->setText(strNewValue);
+  RETURN_IF(strOldValue.isEmpty(), );
+  RETURN_IF(strNewValue.isEmpty(), );
+  double f64OldValue = strOldValue.toDouble();
+  double f64NewValue = strNewValue.toDouble();  
+  if (f64OldValue != f64NewValue)
+  { /* Change icon for increase/decrease balance */
+    ui->pbBalance->setIcon(f64OldValue < f64NewValue
+      ? QIcon{ QPixmap{":/icons/resources/arrow_up_green.png"} }
+      : QIcon{ QPixmap{":/icons/resources/arrow_down_red.png"} });
+  }
+  RETURN_IF(m_strBalanceStart.isEmpty(), );
+  double f64BalanceStart = m_strBalanceStart.toDouble();
+  if (f64BalanceStart != f64NewValue)
+  { /* Change color for increase/decrease balance from start */
+    ui->pbBalance->setStyleSheet(f64BalanceStart < f64NewValue
+      ? "QPushButton { color : green; }"
+      : "QPushButton { color : red; }");
+  }
 }
 
 /* ==========================================================================
@@ -712,8 +967,8 @@ bool CAppBrokerBinary::m_BotStart()
  * ========================================================================== */
 bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
 {
-  DEBUG_APP("Telegram message received", strMsg);
-  RETURN_IFW(!m_HistoryInsert({
+  DEBUG_APP_WDG("Telegram message received", strMsg);
+  RETURN_IFW_WDG(!m_DbHistoryInsert({
       {"operation" , "TBOT RECV"}
     , {"parameters", strMsg}
     , {"details"   , strMsg} })
@@ -722,48 +977,50 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
   //USD CHF CALL 5 MIN WAIT CONFIRM
   //GO
   //NO
-  QString strMsgSockSend;
   if      (strMsg.endsWith("WAIT CONFIRM")) {
     QStringList list = strMsg.split(" ");
     // Early return without CATCH_ABORT (return true)
-    RETURN_IFW(list.count() < 7, "WAIT CONFIRM request malformed", true);
+    RETURN_IFW_WDG(list.count() < 7, "WAIT CONFIRM request malformed", true);
     QString strFrxA = list.at(0);
     QString strFrxB = list.at(1);
     QString strContractType = list.at(2);
     QString strDuration = list.at(3);
     QString strDurationUnit = list.at(4);
     // proposal
-    RETURN_IFW(!m_SendSocketMessage("proposal"
+    RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
         , { 
-              {"amout",         QString::number(ui->dsbProposal->value())} 
+              {"amount"       , QString::number(ui->dsbProposal->value())} 
             , {"contract_type", strContractType}
-            , {"currency"     , ui->labelCurrency->text()}
+            , {"currency"     , ui->leCurrency->text()}
             , {"duration"     , strDuration}
             , {"duration_unit", strDurationUnit == "MIN" ? "m" : "m"}
+            , {"symbolA"      , strFrxA}
+            , {"symbolB"      , strFrxB}
             , {"symbol"       , QString("frx%1%2").arg(strFrxA).arg(strFrxB)}
-          }
-        , strMsgSockSend)
+          })
       , "Error on send proposal request", false);
   }
   else if (strMsg == "GO") {
     // Early return without CATCH_ABORT (return true)
-    RETURN_IFW(Status::kWAITFORCON != m_status
+    RETURN_IFW_WDG(Status::kWAITFORCON != m_status
       , "Cannot place proposal in this status", true);
-    RETURN_IFW(m_strIdProposal.isEmpty()
+    RETURN_IFW_WDG(m_strIdProposal.isEmpty()
       , "Cannot place proposal beacause id is empty", true);
-    RETURN_IFW(m_strContractType != "CALL" && m_strContractType != "PUT"
+    RETURN_IFW_WDG(m_strContractType != "CALL" && m_strContractType != "PUT"
       , "Cannot place proposal beacause type isn't CALL or PUT", true);
-    RETURN_IFW(m_strPrice.isEmpty()
+    RETURN_IFW_WDG(m_strPrice.isEmpty()
       , "Cannot place proposal beacause price is empty", true);
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalUpdate({{"state", "GO"}})
+      , "Unable to update proposal on database", false);
     // buy/sell
     QString strBuySell = m_strContractType == "CALL" ? "buy" : "sell";
-    RETURN_IFW(!m_SendSocketMessage(strBuySell
+    RETURN_IFW_WDG(!m_SendSocketMessage(strBuySell
         , { 
               {strBuySell, m_strIdProposal} 
             , {"price"   , m_strPrice}
-          }
-        , strMsgSockSend)
-      , "Error on send proposal request", false);
+          })
+      , "Error on send proposal request", false);    
   }
   else if (strMsg == "NO") {
     // Reset status
@@ -771,6 +1028,9 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
     m_strContractType = "";
     m_strPrice = "";
     m_StatusUpdate(Status::kAUTHORIZED);
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalUpdate({{"state", "NO"}})
+      , "Unable to update proposal on database", false);
   }
   return true;
 }
@@ -809,7 +1069,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
         \"duration_unit\": \"%5\",\
         \"symbol\": \"%6\"        \
        }")
-      .arg(mapValues.value("amout"))
+      .arg(mapValues.value("amount"))
       .arg(mapValues.value("contract_type"))
       .arg(mapValues.value("currency"))
       .arg(mapValues.value("duration"))
@@ -817,7 +1077,13 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(mapValues.value("symbol"));
     // store contract_type to send buy (CALL) or sell (PUT) request
     m_strContractType = mapValues.value("contract_type");
-    m_strPrice = mapValues.value("amout");
+    m_strPrice = mapValues.value("amount");
+    /* Insert proposal on database */
+    QMap<QString, QString> mapValuesDbInsert = mapValues;
+    mapValuesDbInsert.insert("state", "SEND WAIT");
+    mapValuesDbInsert.insert("balance_before", ui->pbBalance->text());
+    RETURN_IFW(-1 == m_DbProposalInsert(mapValuesDbInsert)
+      , "Unable to insert proposal on database", false);
   }
   else if ("buy" == strMsgType) {
     /* proposal */
@@ -828,6 +1094,9 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
        }")
       .arg(mapValues.value("buy"))
       .arg(mapValues.value("price"));
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalUpdate({{"state", "SEND buy"}})
+      , "Unable to update proposal on database", false);
   }
   else if ("sell" == strMsgType) {
     /* proposal */
@@ -838,20 +1107,23 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
        }")
       .arg(mapValues.value("buy"))
       .arg(mapValues.value("price"));
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalUpdate({{"state", "SEND sell"}})
+      , "Unable to update proposal on database", false);
   }
   else {
-    RETURN_IFW(true, QString("Message type %1 is unrecognized").arg(strMsgType)
+    RETURN_IFW_WDG(true, QString("Message type %1 is unrecognized").arg(strMsgType)
       , false);    
   }
   // Send
   if (!strMsg.isEmpty()) {
-    DEBUG_APP(QString("Send message socket %1").arg(strMsgType), strMsg);
+    DEBUG_APP_WDG(QString("Send message socket %1").arg(strMsgType), strMsg);
     QString strParameters = QString("%1: ").arg(strMsgType);
     for(auto str: mapValues.keys()) {
       strParameters.append(QString("%1=%2, ")
         .arg(str).arg(mapValues.value(str)));
     }
-    RETURN_IFW(!m_HistoryInsert({
+    RETURN_IFW_WDG(!m_DbHistoryInsert({
         {"operation" , "SOCK SEND"}
       , {"parameters", strParameters}
       , {"details"   , strMsg} })
@@ -872,22 +1144,22 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
 bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   , QString& strMsgType, QMap<QString, QString>& mapValues)
 {
-  DEBUG_APP("Recv message socket", strMsg);
+  DEBUG_APP_WDG("Recv message socket", strMsg);
   // Parsing JSON
   QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
-  RETURN_IFW(doc.isNull(), "JsonDocument is null", false);
-  RETURN_IFW(!doc.isObject(), "JsonObject is null", false);
+  RETURN_IFW_WDG(doc.isNull(), "JsonDocument is null", false);
+  RETURN_IFW_WDG(!doc.isObject(), "JsonObject is null", false);
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
     QString msg__error__code;
-    RETURN_IFW(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
+    RETURN_IFW_WDG(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
       , "JSonValue 'code' doesn't exist", false);
     QString msg__error__message;
-    RETURN_IFW(!m_JSonValueStr(msg__error, "message", msg__error__message)
+    RETURN_IFW_WDG(!m_JSonValueStr(msg__error, "message", msg__error__message)
       , "JSonValue 'message' doesn't exist", false);
-    WARNING_APP("Binary return error", QString("code [%1] error[%2]")
+    WARNING_APP_WDG("Binary return error", QString("code [%1] error[%2]")
       .arg(msg__error__code).arg(msg__error__message));
     strMsgType = "error";
     mapValues.insert("code", msg__error__code);
@@ -895,71 +1167,86 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   }
   else
   { /* DECODE RESPONSE based on msg_type */
-    RETURN_IFW(!m_JSonValueStr(msg, "msg_type", strMsgType)
+    RETURN_IFW_WDG(!m_JSonValueStr(msg, "msg_type", strMsgType)
       , "JSonValue 'msg_type' doesn't exist", false);
     if      ("authorize" == strMsgType) 
     { /* First message to authorize application */
       QJsonObject msg__authorize;
-      RETURN_IFW(!m_JSonObject(msg, "authorize", msg__authorize)
+      RETURN_IFW_WDG(!m_JSonObject(msg, "authorize", msg__authorize)
         , "JSonObject 'authorize' doesn't exist", false);
       QString msg__authorize__balance;
-      RETURN_IFW(!m_JSonValueStr(msg__authorize, "balance"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "balance"
         , msg__authorize__balance)
         , "JSonValue 'balance' doesn't exist", false);
       QString msg__authorize__currency;
-      RETURN_IFW(!m_JSonValueStr(msg__authorize, "currency"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "currency"
         , msg__authorize__currency)
         , "JSonValue 'currency' doesn't exist", false);
-      INFO_APP("balance:", msg__authorize__currency);
-      ui->leBalance->setText(msg__authorize__balance);
-      ui->labelCurrency->setText(msg__authorize__currency);
+      INFO_APP_WDG("balance:", msg__authorize__currency);
+      // Save start balance
+      if (m_strBalanceStart.isEmpty()) {
+        m_strBalanceStart = msg__authorize__balance;
+      }
+      m_BalanceUpdate(msg__authorize__balance);
+      ui->leCurrency->setText(msg__authorize__currency);
       mapValues.insert("balance", msg__authorize__balance);
       mapValues.insert("currency", msg__authorize__currency);
-      /* Update Status: AUTHORIZED */
-      m_StatusUpdate(Status::kAUTHORIZED);
+      /* Update Status: AUTHORIZED (only first time) */
+      static bool bFirstTime = true;
+      if (bFirstTime) {
+        m_StatusUpdate(Status::kAUTHORIZED);
+        bFirstTime = false;
+      }
     }
     else if ("proposal" == strMsgType) 
     { /* Proposal wait feedback */
       QJsonObject msg__authorize;
-      RETURN_IFW(!m_JSonObject(msg, "proposal", msg__authorize)
+      RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__authorize)
         , "JSonObject 'proposal' doesn't exist", false);
       QString msg__proposal__id;
-      RETURN_IFW(!m_JSonValueStr(msg__authorize, "id"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "id"
         , msg__proposal__id)
         , "JSonValue 'id' doesn't exist", false);
-      INFO_APP("id proposal:", msg__proposal__id);
-      mapValues.insert("id", msg__proposal__id);
-      /* Update Status: WAIT FOR CONFIRM */
+      INFO_APP_WDG("id proposal:", msg__proposal__id);
+      mapValues.insert("id", msg__proposal__id);      
       m_strIdProposal = msg__proposal__id;
+      /* Update proposal on database */
+      RETURN_IFW(!m_DbProposalUpdate({{"state", "RECV WAIT"}})
+        , "Unable to update proposal on database", false);
+      /* Update Status: WAIT FOR CONFIRM */
       m_StatusUpdate(Status::kWAITFORCON);
     }
     else if ("buy" == strMsgType) 
     { /* Buy wait feedback */
       QJsonObject msg__buy;
-      RETURN_IFW(!m_JSonObject(msg, "buy", msg__buy)
+      RETURN_IFW_WDG(!m_JSonObject(msg, "buy", msg__buy)
         , "JSonObject 'buy' doesn't exist", false);
       QString msg__buy__balance_after;
-      RETURN_IFW(!m_JSonValueStr(msg__buy, "balance_after"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "balance_after"
         , msg__buy__balance_after)
         , "JSonValue 'balance_after' doesn't exist", false);
-      INFO_APP("balance_after proposal:", msg__buy__balance_after);
+      INFO_APP_WDG("balance_after proposal:", msg__buy__balance_after);
       mapValues.insert("balance_after", msg__buy__balance_after);
-      ui->leBalance->setText(msg__buy__balance_after);
+      /* Update proposal on database */
+      RETURN_IFW(!m_DbProposalUpdate({{"state", "RECV buy"}})
+        , "Unable to update proposal on database", false);
       /* Update Status: AUTHORIZED */
       m_StatusUpdate(Status::kAUTHORIZED);
     }
     else if ("sell" == strMsgType) 
     { /* Sell wait feedback */
       QJsonObject msg__sell;
-      RETURN_IFW(!m_JSonObject(msg, "sell", msg__sell)
+      RETURN_IFW_WDG(!m_JSonObject(msg, "sell", msg__sell)
         , "JSonObject 'sell' doesn't exist", false);
       QString msg__sell__balance_after;
-      RETURN_IFW(!m_JSonValueStr(msg__sell, "balance_after"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__sell, "balance_after"
         , msg__sell__balance_after)
         , "JSonValue 'balance_after' doesn't exist", false);
-      INFO_APP("balance_after proposal:", msg__sell__balance_after);
+      INFO_APP_WDG("balance_after proposal:", msg__sell__balance_after);
       mapValues.insert("balance_after", msg__sell__balance_after);      
-      ui->leBalance->setText(msg__sell__balance_after);
+      /* Update proposal on database */
+      RETURN_IFW(!m_DbProposalUpdate({{"state", "RECV sell"}})
+        , "Unable to update proposal on database", false);
       /* Update Status: AUTHORIZED */
       m_StatusUpdate(Status::kAUTHORIZED);
     }
@@ -969,7 +1256,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     strParameters.append(QString("%1=%2, ")
       .arg(str).arg(mapValues.value(str)));
   }
-  RETURN_IFW(!m_HistoryInsert({
+  RETURN_IFW_WDG(!m_DbHistoryInsert({
       {"operation" , "SOCK RECV"}
     , {"parameters", strParameters}
     , {"details"   , strMsg} })

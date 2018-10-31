@@ -90,6 +90,7 @@ public slots:
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
   void slotOnLookApply(const QString&);
+  void slotOnBalanceClicked();
 
 protected slots:
   void slotOnDbConnected();
@@ -103,7 +104,8 @@ private:
   QWebSocket m_webSocket;
 
   CWdgCentral m_wdgCentral;
-  CAppModel m_model;
+  CAppModel m_modelHistory;
+  CAppModel m_modelProposals;
   
   QUrl m_url;
 
@@ -113,8 +115,11 @@ private:
   QString m_strToken;
   QString m_strTokenBot;  
 
+  QString m_strBalanceStart;
   int64_t m_i64SessionId;
   int64_t m_i64SessionIdSelected;
+  int64_t m_i64LastHistory;
+  int64_t m_i64LastProposal;
   
   QString m_strIdProposal;
   QString m_strContractType;
@@ -122,17 +127,22 @@ private:
 
   void m_StatusUpdate(Status);
   void m_LookApply(const QString&);
-  bool m_DbCreateTable();
-  int64_t m_SessionCreate();
+  bool m_DbCreateTables();
+  bool m_DbHistoryRelaod(bool = false);
+  bool m_DbProposalsRelaod(bool = false);
+  int64_t m_DbSessionInsert();
+  int64_t m_DbHistoryInsert(const QMap<QString,QString>&);
+  int64_t m_DbProposalInsert(const QMap<QString,QString>&);
+  bool m_DbProposalUpdate(const QMap<QString,QString>&);
   bool m_ComboSessionLoad();
-  bool m_HistoryRelaod(bool = false);
-  bool m_OpenSocket();
-  bool m_HistoryInsert(const QMap<QString,QString>&);
+  bool m_SocketOpen();
   bool m_BotStart();
+  void m_BalanceUpdate(const QString&);
   bool m_RcvTelegramMessage(const QString&);
   bool m_SendSocketMessage(const QString&, const QMap<QString,QString>&
-    , QString&);
-  bool m_RecvSocketMessage(const QString&, QString&, QMap<QString, QString>&);
+    , QString& = QString());
+  bool m_RecvSocketMessage(const QString&, QString& = QString()
+    , QMap<QString,QString>& = QMap<QString,QString>());
   bool m_JSonObject(const QJsonObject&, const QString&, QJsonObject&);
   bool m_JSonValueStr(const QJsonObject&, const QString&, QString&);
 };
