@@ -121,7 +121,8 @@ set(SOURCES
   ${SRC_PATH}/app_broker_binary.cpp
   ${SRC_PATH}/app_configuration.cpp
   ${SRC_PATH}/app_database.cpp  
-  ${SRC_PATH}/app_model.cpp
+  ${SRC_PATH}/app_model_history.cpp
+  ${SRC_PATH}/app_model_proposals.cpp
   ${SRC_PATH}/app_telegram_bot.cpp
 )
 
@@ -155,7 +156,8 @@ set(INCLUDES
   ${INC_PATH}/app_broker_binary.h
   ${INC_PATH}/app_configuration.h
   ${INC_PATH}/app_database.h
-  ${INC_PATH}/app_model.h
+  ${INC_PATH}/app_model_history.h
+  ${INC_PATH}/app_model_proposals.h
   ${INC_PATH}/app_telegram_bot.h
 )
 # Setup variable containing UI files

@@ -19,7 +19,8 @@
  * INCLUDE: Basic include file.
  * ========================================================================== */
 #include "app_telegram_bot.h"
-#include "app_model.h"
+#include "app_model_history.h"
+#include "app_model_proposals.h"
 #include <QMainWindow>
 #include <QtWebSockets/QWebSocket>
 #include <QJsonDocument>
@@ -110,8 +111,8 @@ private:
   QWebSocket m_webSocket;
 
   CWdgCentral m_wdgCentral;
-  CAppModel m_modelHistory;
-  CAppModel m_modelProposals;
+  CAppModelHistory m_modelHistory;
+  CAppModelProposals m_modelProposals;
   
   QUrl m_url;
 
