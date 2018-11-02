@@ -678,8 +678,6 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , symbolB text NOT NULL \
         , amount text NOT NULL \
         , currency text NOT NULL \
-        , balance_before text \
-        , balance_after text \
         , proposal_id text \
         , contract_id text \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -764,9 +762,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     << false //symbolA
     << false //symbolB
     << false //amount
-    << false //currency    
-    << false //balance_before
-    << false //balance_after
+    << false //currency
     << true  //proposal_id
     << true; //contract_id;
   if (bHideColumns)
@@ -865,19 +861,17 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
 {
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO proposals (\
-        session_id, date_time, contract_type, symbolA, symbolB, amount\
-        , currency, status, balance_before, balance_after) \
+        session_id, date_time, status, contract_type, symbolA, symbolB, amount\
+        , currency) \
       VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10')")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
+      .arg(mapValues.value("status"))
       .arg(mapValues.value("contract_type"))
       .arg(mapValues.value("symbolA"))
       .arg(mapValues.value("symbolB"))
       .arg(mapValues.value("amount"))
-      .arg(mapValues.value("currency"))
-      .arg(mapValues.value("status"))
-      .arg(mapValues.value("balance_before"))
-      .arg(mapValues.value("balance_after")));
+      .arg(mapValues.value("currency")));
   RETURN_IFW_WDG(-1 == i64Id
     , "Unable to insert a proposal entry on database", i64Id);
   // Reload proposals
@@ -1178,14 +1172,17 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     /* Insert proposal on database */
     QMap<QString, QString> mapValuesDbInsert = mapValues;
     mapValuesDbInsert.insert("status", "proposal send");
-    mapValuesDbInsert.insert("balance_before", ui->pbBalance->text());
     m_i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
     RETURN_IFW(-1 == m_i64LastIdProposal
       , "Unable to insert proposal on database", false);
     // store contract_type and price to send buy (CALL) or sell (PUT) request
     sProposalInfo info;
+    info.strProposalId = "";
+    info.strContractId = "";
     info.strContractType = mapValues.value("contract_type");
     info.strPrice = mapValues.value("amount");
+    info.strStatus = "";
+    info.i64CountDown = 0;
     m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
   }
   else if (("buy" == strMsgType) || ("sell" == strMsgType))
@@ -1417,6 +1414,18 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , "profit_percentage"
         , msg__proposal_open_contract__profit_percentage)
         , "JSonValue 'profit_percentage' doesn't exist", false);
+      int64_t msg__proposal_open_contract__date_expiry;
+      RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
+        , "date_expiry"
+        , msg__proposal_open_contract__date_expiry)
+        , "JSonValue 'date_expiry' doesn't exist", false);
+      int64_t msg__proposal_open_contract__entry_tick_time;
+      RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
+        , "entry_tick_time"
+        , msg__proposal_open_contract__entry_tick_time)
+        , "JSonValue 'entry_tick_time' doesn't exist", false);
+      int64_t i64CountDown = msg__proposal_open_contract__date_expiry 
+        - msg__proposal_open_contract__entry_tick_time;
       mapValues.insert("contract_id", msg__proposal_open_contract__contract_id);
       mapValues.insert("is_expired" 
         , QString::number(msg__proposal_open_contract__is_expired));
@@ -1425,7 +1434,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , QString::number(msg__proposal_open_contract__profit));
       mapValues.insert("profit_percentage"
         , msg__proposal_open_contract__profit_percentage);
-      
+      mapValues.insert("countdown", QString::number(i64CountDown));      
       INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
       sProposalInfo info;
       int i64Id = m_i64IdProposalByInfo("contract_id"
@@ -1434,17 +1443,17 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , QString("Cannot retrieve from Proposal Info a contract_id = %1")
           .arg(msg__proposal_open_contract__contract_id)
         , false);
-      if (msg__proposal_open_contract__status != info.strStatus) {
-        bInsertHistory = true;
-        info.strStatus = msg__proposal_open_contract__status;
-        m_mapProposalId2Info.insert(i64Id, info);
-      }
+      info.strStatus = msg__proposal_open_contract__status;
+      info.i64CountDown = i64CountDown;
+      m_mapProposalId2Info.insert(i64Id, info);
+      bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
       /* Update proposal on database */
       RETURN_IFW(!m_DbProposalUpdate({
               {"status", msg__proposal_open_contract__status}
             , {"profit", QString::number(msg__proposal_open_contract__profit)}
             , {"profit_percentage"
-              , msg__proposal_open_contract__profit_percentage}}
+              , msg__proposal_open_contract__profit_percentage}
+            , {"countdown", QString::number(i64CountDown)}}
           , i64Id)
         , "Unable to update proposal on database", false);
     }
@@ -1516,6 +1525,25 @@ bool CAppBrokerBinary::m_JSonValueDouble(const QJsonObject& qJsonObjectParent
   QJsonValue qJsonValue = qJsonObjectParent.value(strName);
   RETURN_IF(!qJsonValue.isDouble(), false);
   f64ValueRet = qJsonValue.toDouble();
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonValueLong
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_JSonValueLong(const QJsonObject& qJsonObjectParent
+  , const QString& strName, int64_t& i64ValueRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  RETURN_IF(!qJsonValue.isDouble(), false);
+  i64ValueRet = static_cast<int64_t>(qJsonValue.toDouble());
   return true;
 }
 

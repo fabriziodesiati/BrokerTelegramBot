@@ -105,12 +105,15 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
   {
     if       (idx.column() == APP_MODEL_COL_STATUS)
     {
+      QString strStatus = data(idx, Qt::DisplayRole).toString();
       static const QMap<QString,QColor> mapStatus2Color = {
-          {"open",":/icons/resources/circle_yellow.png"}
-        , {"sold",":/icons/resources/circle_yellow.png"}
-        , {"lost",":/icons/resources/circle_red.png"   }
-        , {"won" ,":/icons/resources/circle_green.png"  }
+          {"open",QColor(255, 255,   0, 255)} /* yellow */
+        , {"sold",QColor(255, 255,   0, 255)} /* yellow */
+        , {"lost",QColor(255,   0,   0, 255)} /* red */
+        , {"won" ,QColor(  0, 255,   0, 255)} /* green */
       };
+      RETURN_IF(mapStatus2Color.contains(strStatus)
+        , mapStatus2Color.value(strStatus));
     }
     else if ((idx.column() == APP_MODEL_COL_PROFIT           ) ||
              (idx.column() == APP_MODEL_COL_PROFIT_PERCENTAGE))
