@@ -208,8 +208,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   DEBUG_APP_WDG("Starting Broker Binary ...", "");
   
   /* Set stylesheet for proposal resume */
-  ui->leProposalsWon->setStyleSheet("QLabel { color : green; }");
+  ui->leProposalsOpenSold->setStyleSheet("QLabel { color : yellow; }");
   ui->leProposalsLost->setStyleSheet("QLabel { color : red; }");
+  ui->leProposalsWon->setStyleSheet ("QLabel { color : lightgreen; }");
 
   /* Hide details */
   ui->textDetails->setVisible(false);
@@ -791,6 +792,9 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     }
     bResizeToContents = false;
   }
+  // Reload proposals
+  RETURN_IFW(!m_ProposalResumeUpdate(), "Unable to update resume proposals"
+    , false);
   return true;
 }
 
@@ -905,10 +909,7 @@ bool CAppBrokerBinary::m_DbProposalUpdate(const QMap<QString,QString>& mapValues
        WHERE id=%2")
       .arg(strSetValues)
       .arg(i64Id))
-    , "Unable to update proppsals table", false);
-  // Reload proposals
-  RETURN_IFW(!m_ProposalResumeUpdate(), "Unable to update resume proposals"
-    , false);
+    , "Unable to update proppsals table", false);  
   return m_DbProposalsRelaod(true);
 
 }
@@ -1027,7 +1028,7 @@ void CAppBrokerBinary::m_BalanceUpdate(const QString& strNewValue)
   if (f64BalanceStart != f64NewValue)
   { /* Change color for increase/decrease balance from start */
     ui->pbBalance->setStyleSheet(f64BalanceStart < f64NewValue
-      ? "QPushButton { color : green; }"
+      ? "QPushButton { color : lightgreen; }"
       : "QPushButton { color : red; }");
   }
 }
@@ -1610,31 +1611,49 @@ int64_t CAppBrokerBinary::m_i64IdProposalByInfo(const QString& strInfoName
 bool CAppBrokerBinary::m_ProposalResumeUpdate()
 {
   /* Select proposal resume */
-  const QString strQuery = "      SELECT count(*) as tot       FROM Proposals \
-                            UNION SELECT count(*) as won       FROM Proposals \
-                                     WHERE status IN ('won')                  \
-                            UNION SELECT count(*) as lost      FROM Proposals \
-                                     WHERE status IN ('sold','lost')          \
-                            UNION SELECT sum(profit) as profit FROM Proposals ";
-  QSqlQuery qry;
-  RETURN_IFW_WDG(!qry.exec(strQuery)
-    , QString("Unable to execute query [%1] E=%2")
-      .arg(strQuery).arg(qry.lastError().text()), false);
-  RETURN_IFW_WDG(!qry.next(),QString("Unable to retrieve query results"),false);
-  int iTot  = qry.value("tot").toInt();
-  int iWon  = qry.value("won").toInt();
-  int iLost = qry.value("lost").toInt();
-  double f64Profit = qry.value("profit").toDouble();
-  ui->leProposalsTotal->setText(QString("TOT: %1").arg(iTot));
-  ui->leProposalsTotal->setText(QString("WON: %1").arg(iWon));
-  ui->leProposalsTotal->setText(QString("LOST: %1").arg(iLost));
-  ui->leProposalsProfit->setText(QString::number(f64Profit));
-  if (f64Profit > 0.0) {
-    ui->leProposalsProfit->setStyleSheet("QLabel { color : green; }");
+  static const QMap<QString,QString> mapRole2Query = {
+      {"TOT" ,"SELECT count(*) as TOT  FROM Proposals"}
+    , {"SOLD","SELECT count(*) as SOLD FROM Proposals WHERE status IN \
+       ('open','sold')"}
+    , {"LOST","SELECT count(*) as LOST FROM Proposals WHERE status IN ('lost')"}
+    , {"WON" ,"SELECT count(*) as WON  FROM Proposals WHERE status IN ('won')" }
+    , {"PROF","SELECT sum(profit) as PROF FROM Proposals"                      }    
+  };
+  for (auto strRole: mapRole2Query.keys())
+  {
+    QSqlQuery qry;
+    QString strQuery = mapRole2Query.value(strRole);
+    RETURN_IFW_WDG(!qry.exec(strQuery)
+      , QString("Unable to execute query [%1] E=%2")
+        .arg(strQuery).arg(qry.lastError().text()), false);
+    RETURN_IFW_WDG(!qry.next()
+      , QString("Unable to retrieve query results for %1").arg(strRole)
+      , false);
+    QVariant qV = qry.value(0);
+    if      ("TOT" == strRole) {
+      ui->leProposalsTotal->setText(QString("TOT: %1").arg(qV.toInt()));
+    }
+    else if ("SOLD" == strRole) {
+      ui->leProposalsOpenSold->setText(QString("OPEN/SOLD: %1").arg(qV.toInt()));
+    }
+    else if ("LOST" == strRole) {
+      ui->leProposalsLost->setText(QString("LOST: %1").arg(qV.toInt()));
+    }
+    else if ("WON" == strRole) {
+      ui->leProposalsWon->setText(QString("WON: %1").arg(qV.toInt()));
+    }
+    else if ("PROF" == strRole) {
+      double f64Profit = qV.toDouble();
+      ui->leProposalsProfit->setText(QString::number(f64Profit));
+      ui->leProposalsProfit->setStyleSheet(f64Profit > 0.0
+        ? "QLabel { color : lightgreen; }" : "QLabel { color : red; }");
+    }
+    else {
+      RETURN_IFW_WDG(true
+        , QString("Unable to found query for %1").arg(strRole)
+        , false);
+    }
   }
-  else {
-    ui->leProposalsProfit->setStyleSheet("QLabel { color : red; }");
-  }  
   return true;
 }
 

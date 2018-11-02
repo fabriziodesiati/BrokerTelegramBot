@@ -27,10 +27,11 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_DEBUG               1
-#define APP_MODEL_COL_DATE_TIME 2
-#define APP_MODEL_COL_STATUS    3
-#define APP_MODEL_COL_PROFIT    4
+#define APP_DEBUG                       1
+#define APP_MODEL_COL_DATE_TIME         2
+#define APP_MODEL_COL_STATUS            3
+#define APP_MODEL_COL_PROFIT            4
+#define APP_MODEL_COL_PROFIT_PERCENTAGE 5
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -89,19 +90,21 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
     {
       QModelIndex idxOperation = createIndex(idx.row(), APP_MODEL_COL_STATUS);
       QString strStatus = data(idxOperation, Qt::DisplayRole).toString();
-      RETURN_IF("sold" == strStatus
-        , QIcon{QPixmap{":/icons/resources/circle_yellow.png"}});
-      RETURN_IF("won" == strStatus
-        , QIcon{QPixmap{":/icons/resources/circle_green.png"}});
-      RETURN_IF("lost" == strStatus
-        , QIcon{QPixmap{":/icons/resources/circle_red.png"}});
+      static const QMap<QString,QString> mapStatus2Color = {
+          {"open",":/icons/resources/circle_yellow.png"}
+        , {"sold",":/icons/resources/circle_yellow.png"}
+        , {"lost",":/icons/resources/circle_red.png"   }
+        , {"won" ,":/icons/resources/circle_green.png"  }
+      };
       RETURN_IF(true
-        , QIcon{QPixmap{":/icons/resources/circle_gray.png"}});
+        , QIcon{QPixmap{mapStatus2Color.value(strStatus
+          , ":/icons/resources/circle_gray.png")}});
     }
   }
-  else if (role == Qt::DecorationRole)
+  else if (role == Qt::ForegroundRole)
   {
-    if (idx.column() == APP_MODEL_COL_PROFIT)
+    if ((idx.column() == APP_MODEL_COL_PROFIT           ) ||
+        (idx.column() == APP_MODEL_COL_PROFIT_PERCENTAGE))
     {
       double f64Profit = data(idx, Qt::DisplayRole).toDouble();
       RETURN_IF(f64Profit > 0.0, QColor(  0, 255,   0, 255)); /* green */
