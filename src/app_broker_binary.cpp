@@ -26,6 +26,7 @@
 #include <QSettings>
 #include <QStyleFactory>
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include "ui_wdgmain.h"
 #include "ui_wdgcentral.h"
 
@@ -199,16 +200,31 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   uiMain->menubar->setVisible(false);  
   uiMain->toolBar->setVisible(false);
   uiMain->statusbar->setVisible(true);
-
+  
   setCentralWidget(&m_wdgCentral);
   ui = m_wdgCentral.getUi();
 
   /* START FRM HERE TO USE XXX_WDG MACROs */
   DEBUG_APP_WDG("Starting Broker Binary ...", "");
   
+  /* Set stylesheet for proposal resume */
+  ui->leProposalsWon->setStyleSheet("QLabel { color : green; }");
+  ui->leProposalsLost->setStyleSheet("QLabel { color : red; }");
+
+  /* Hide details */
+  ui->textDetails->setVisible(false);
+
   /* Connect model */
   ui->tbHistory->setModel(&m_modelHistory);
   ui->tbProposals->setModel(&m_modelProposals);
+
+  /* TableView aspects */
+  ui->tbHistory->setAlternatingRowColors(true);
+  ui->tbHistory->setSelectionBehavior(QAbstractItemView::SelectRows);
+  ui->tbHistory->setSelectionMode(QAbstractItemView::SingleSelection);
+  ui->tbProposals->setAlternatingRowColors(true);
+  ui->tbProposals->setSelectionBehavior(QAbstractItemView::SelectRows);
+  ui->tbProposals->setSelectionMode(QAbstractItemView::SingleSelection);
 
   /* connect signals and slots */
   connect(&CAppDatabase::GetInstance()
@@ -223,6 +239,14 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->pbBalance
     , SIGNAL(clicked())
     , SLOT(slotOnBalanceClicked()));
+  connect(ui->tbHistory->selectionModel()
+    , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
+    , SLOT(slotOnItemSelectedHistory(
+      const QItemSelection&, const QItemSelection&)));
+  connect(ui->tbProposals->selectionModel()
+    , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
+    , SLOT(slotOnItemSelectedProposal(
+      const QItemSelection&, const QItemSelection&)));
 
   /* Apply theme settings */
   QSettings s(HMI_COMPANY, HMI_TITLE);
@@ -374,6 +398,50 @@ void CAppBrokerBinary::slotOnBalanceClicked()
   CATCH_ABORT_WDG(
       !m_SendSocketMessage("authorize", {{"authorize", m_strToken}})
     , "Error on send authorize request");
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnItemSelectedHistory
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnItemSelectedHistory(const QItemSelection& sel
+  , const QItemSelection&)
+{
+  ui->textDetails->setVisible(false);
+  if (!sel.isEmpty())
+  {
+    auto il = sel.indexes();
+    if (!il.isEmpty()) {
+      ui->textDetails->setVisible(true);
+      m_DetailsUpdate(m_modelHistory, il.first().row());
+    }    
+  }
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnItemSelectedProposal
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnItemSelectedProposal(const QItemSelection& sel
+  , const QItemSelection&)
+{
+  ui->textDetails->setVisible(false);
+  if (!sel.isEmpty())
+  {
+    auto il = sel.indexes();
+    if (!il.isEmpty()) {
+      ui->textDetails->setVisible(true);
+      m_DetailsUpdate(m_modelProposals, il.first().row());
+    }    
+  }
 }
 
 /* ==========================================================================
@@ -839,6 +907,8 @@ bool CAppBrokerBinary::m_DbProposalUpdate(const QMap<QString,QString>& mapValues
       .arg(i64Id))
     , "Unable to update proppsals table", false);
   // Reload proposals
+  RETURN_IFW(!m_ProposalResumeUpdate(), "Unable to update resume proposals"
+    , false);
   return m_DbProposalsRelaod(true);
 
 }
@@ -991,6 +1061,9 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
     QString strContractType = list.at(2);
     QString strDuration = list.at(3);
     QString strDurationUnit = list.at(4);
+    static const QMap<QString,QString> mapDurationUnit = {
+      {"SEC", "s"}, {"MIN", "m"}
+    };
     // proposal
     RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
         , { 
@@ -998,7 +1071,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
             , {"contract_type", strContractType}
             , {"currency"     , ui->leCurrency->text()}
             , {"duration"     , strDuration}
-            , {"duration_unit", strDurationUnit == "MIN" ? "m" : "m"}
+            , {"duration_unit", mapDurationUnit.value(strDurationUnit, "m")}
             , {"symbolA"      , strFrxA}
             , {"symbolB"      , strFrxB}
             , {"symbol"       , QString("frx%1%2").arg(strFrxA).arg(strFrxB)}
@@ -1290,12 +1363,13 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       INFO_APP_WDG("contract_id:", msg__buyORsell__contract_id);
       mapValues.insert("contract_id", msg__buyORsell__contract_id);
       /* update map Proposal with ContractId */
-      int i64Id = m_i64IdProposalByInfo("proposal_id",msg__echo_req__buyORsell);
+      sProposalInfo info;
+      int i64Id = m_i64IdProposalByInfo("proposal_id"
+        , msg__echo_req__buyORsell, info);
       RETURN_IFW_WDG(-1 == i64Id
         , QString("Cannot retrieve from Proposal Info a proposal_id = %1")
           .arg(msg__echo_req__buyORsell)
         , false);
-      sProposalInfo info = m_mapProposalId2Info.value(i64Id);
       info.strContractId = msg__buyORsell__contract_id;
       m_mapProposalId2Info.insert(i64Id, info);
       /* Update proposal on database */
@@ -1350,14 +1424,20 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , QString::number(msg__proposal_open_contract__profit));
       mapValues.insert("profit_percentage"
         , msg__proposal_open_contract__profit_percentage);
-      bInsertHistory = msg__proposal_open_contract__is_expired;
+      
       INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
+      sProposalInfo info;
       int i64Id = m_i64IdProposalByInfo("contract_id"
-        , msg__proposal_open_contract__contract_id);
+        , msg__proposal_open_contract__contract_id, info);
       RETURN_IFW_WDG(-1 == i64Id
         , QString("Cannot retrieve from Proposal Info a contract_id = %1")
           .arg(msg__proposal_open_contract__contract_id)
         , false);
+      if (msg__proposal_open_contract__status != info.strStatus) {
+        bInsertHistory = true;
+        info.strStatus = msg__proposal_open_contract__status;
+        m_mapProposalId2Info.insert(i64Id, info);
+      }
       /* Update proposal on database */
       RETURN_IFW(!m_DbProposalUpdate({
               {"status", msg__proposal_open_contract__status}
@@ -1499,7 +1579,7 @@ bool CAppBrokerBinary::m_JSonValueDoubleOrStr(const QJsonObject& qJsonObjectPare
  *         SUBORDINATES: None
  * ========================================================================== */
 int64_t CAppBrokerBinary::m_i64IdProposalByInfo(const QString& strInfoName
-  , const QString& strInfoValue)
+  , const QString& strInfoValue, sProposalInfo& infoRet)
 {
   int64_t i64IdProposal = -1;
   for(auto id: m_mapProposalId2Info.keys())
@@ -1508,13 +1588,71 @@ int64_t CAppBrokerBinary::m_i64IdProposalByInfo(const QString& strInfoName
     if      (("proposal_id" == strInfoName       ) && 
              (strInfoValue  == info.strProposalId))
     {
-      i64IdProposal = id; break;
+      i64IdProposal = id; infoRet = info;  break;
     }
     else if (("contract_id" == strInfoName       ) && 
              (strInfoValue  == info.strContractId))
     {
-      i64IdProposal = id; break;
+      i64IdProposal = id; infoRet = info;  break;
     }
   }
   return i64IdProposal;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_ProposalResumeUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_ProposalResumeUpdate()
+{
+  /* Select proposal resume */
+  const QString strQuery = "      SELECT count(*) as tot       FROM Proposals \
+                            UNION SELECT count(*) as won       FROM Proposals \
+                                     WHERE status IN ('won')                  \
+                            UNION SELECT count(*) as lost      FROM Proposals \
+                                     WHERE status IN ('sold','lost')          \
+                            UNION SELECT sum(profit) as profit FROM Proposals ";
+  QSqlQuery qry;
+  RETURN_IFW_WDG(!qry.exec(strQuery)
+    , QString("Unable to execute query [%1] E=%2")
+      .arg(strQuery).arg(qry.lastError().text()), false);
+  RETURN_IFW_WDG(!qry.next(),QString("Unable to retrieve query results"),false);
+  int iTot  = qry.value("tot").toInt();
+  int iWon  = qry.value("won").toInt();
+  int iLost = qry.value("lost").toInt();
+  double f64Profit = qry.value("profit").toDouble();
+  ui->leProposalsTotal->setText(QString("TOT: %1").arg(iTot));
+  ui->leProposalsTotal->setText(QString("WON: %1").arg(iWon));
+  ui->leProposalsTotal->setText(QString("LOST: %1").arg(iLost));
+  ui->leProposalsProfit->setText(QString::number(f64Profit));
+  if (f64Profit > 0.0) {
+    ui->leProposalsProfit->setStyleSheet("QLabel { color : green; }");
+  }
+  else {
+    ui->leProposalsProfit->setStyleSheet("QLabel { color : red; }");
+  }  
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DetailsUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_DetailsUpdate(const QSqlQueryModel& model, int row)
+{
+  QString strDetails;
+  QSqlRecord record = model.record(row);
+  for(auto i=0; i < record.count(); ++i) {
+    strDetails.append(QString("%1 = %2\n")
+      .arg(record.fieldName(i)).arg(record.value(i).toString()));
+  }
+  ui->textDetails->setText(strDetails);
 }

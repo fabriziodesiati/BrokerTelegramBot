@@ -27,7 +27,9 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_DEBUG 1
+#define APP_DEBUG               1
+#define APP_MODEL_COL_DATE_TIME 2
+#define APP_MODEL_COL_OPERATION 3
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -82,9 +84,9 @@ QVariant CAppModelHistory::data(const QModelIndex &idx, int role) const
 {
   if (role == Qt::DecorationRole)
   {
-    if (idx.column() == 2) /* date_time */
+    if (idx.column() == APP_MODEL_COL_DATE_TIME)
     {
-      QModelIndex idxOperation = createIndex(idx.row(), 3); /* operation */
+      QModelIndex idxOperation = createIndex(idx.row(),APP_MODEL_COL_OPERATION);
       QString strOperation = data(idxOperation, Qt::DisplayRole).toString();
       RETURN_IF("SOCK OPEN" == strOperation
         , QIcon{QPixmap{":/icons/resources/history_sock_conn.png"}});

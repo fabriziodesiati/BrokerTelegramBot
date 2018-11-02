@@ -24,6 +24,7 @@
 #include <QMainWindow>
 #include <QtWebSockets/QWebSocket>
 #include <QJsonDocument>
+#include <QItemSelection>
 
 /* ==========================================================================
  * MACROS
@@ -71,6 +72,7 @@ public:
     QString strContractId;
     QString strContractType;
     QString strPrice;
+    QString strStatus;
   };
 
   static QString CurrentDateTime();
@@ -98,6 +100,8 @@ public slots:
   void slotOnComboSessionsCurrentTextChanged(const QString&);
   void slotOnLookApply(const QString&);
   void slotOnBalanceClicked();
+  void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
+  void slotOnItemSelectedProposal(const QItemSelection&, const QItemSelection&);
 
 protected slots:
   void slotOnDbConnected();
@@ -154,7 +158,9 @@ private:
   bool m_JSonValueDouble(const QJsonObject&, const QString&, double&);
   bool m_JSonValueStrOrLong(const QJsonObject&, const QString&, QString&);
   bool m_JSonValueDoubleOrStr(const QJsonObject&, const QString&, double&);
-  int64_t m_i64IdProposalByInfo(const QString&, const QString&);
+  int64_t m_i64IdProposalByInfo(const QString&, const QString&, sProposalInfo&);
+  bool m_ProposalResumeUpdate();
+  void m_DetailsUpdate(const QSqlQueryModel&, int);  
 };
 
 #endif // APP_BROKER_BINARY_H

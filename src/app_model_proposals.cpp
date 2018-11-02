@@ -27,7 +27,10 @@
 /* ==========================================================================
  * MODULE PRIVATE MACROS
  * ========================================================================== */
-#define APP_DEBUG 1
+#define APP_DEBUG               1
+#define APP_MODEL_COL_DATE_TIME 2
+#define APP_MODEL_COL_STATUS    3
+#define APP_MODEL_COL_PROFIT    4
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -80,18 +83,29 @@ CAppModelProposals::~CAppModelProposals()
  * ========================================================================== */
 QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
 {
-  if (role == Qt::DecorationRole)
+  if      (role == Qt::DecorationRole)
   {
-    if (idx.column() == 2) /* date_time */
+    if (idx.column() == APP_MODEL_COL_DATE_TIME)
     {
-      QModelIndex idxOperation = createIndex(idx.row(), 8); /* status */
+      QModelIndex idxOperation = createIndex(idx.row(), APP_MODEL_COL_STATUS);
       QString strStatus = data(idxOperation, Qt::DisplayRole).toString();
+      RETURN_IF("sold" == strStatus
+        , QIcon{QPixmap{":/icons/resources/circle_yellow.png"}});
       RETURN_IF("won" == strStatus
         , QIcon{QPixmap{":/icons/resources/circle_green.png"}});
-      RETURN_IF("lose" == strStatus
+      RETURN_IF("lost" == strStatus
         , QIcon{QPixmap{":/icons/resources/circle_red.png"}});
       RETURN_IF(true
-        , QIcon{QPixmap{":/icons/resources/circle_yellow.png"}});
+        , QIcon{QPixmap{":/icons/resources/circle_gray.png"}});
+    }
+  }
+  else if (role == Qt::DecorationRole)
+  {
+    if (idx.column() == APP_MODEL_COL_PROFIT)
+    {
+      double f64Profit = data(idx, Qt::DisplayRole).toDouble();
+      RETURN_IF(f64Profit > 0.0, QColor(  0, 255,   0, 255)); /* green */
+      RETURN_IF(f64Profit < 0.0, QColor(255,   0,   0, 255)); /* red */
     }
   }
   return QSqlQueryModel::data(idx, role);

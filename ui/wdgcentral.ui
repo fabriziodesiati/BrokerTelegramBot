@@ -176,9 +176,57 @@
     <widget class="QTableView" name="tbHistory"/>
    </item>
    <item row="3" column="0">
-    <widget class="QTableView" name="tbProposals"/>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <widget class="QLabel" name="leProposalsTotal">
+       <property name="text">
+        <string>TOT</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="leProposalsWon">
+       <property name="text">
+        <string>WON</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="leProposalsLost">
+       <property name="text">
+        <string>LOST</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="leProposalsProfit">
+       <property name="text">
+        <string>PROFIT</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item row="4" column="0">
+    <widget class="QTableView" name="tbProposals"/>
+   </item>
+   <item row="5" column="0">
+    <widget class="QTextEdit" name="textDetails"/>
+   </item>
+   <item row="6" column="0">
     <widget class="QLabel" name="lblInfo">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
