@@ -103,8 +103,17 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
   }
   else if (role == Qt::ForegroundRole)
   {
-    if ((idx.column() == APP_MODEL_COL_PROFIT           ) ||
-        (idx.column() == APP_MODEL_COL_PROFIT_PERCENTAGE))
+    if       (idx.column() == APP_MODEL_COL_STATUS)
+    {
+      static const QMap<QString,QColor> mapStatus2Color = {
+          {"open",":/icons/resources/circle_yellow.png"}
+        , {"sold",":/icons/resources/circle_yellow.png"}
+        , {"lost",":/icons/resources/circle_red.png"   }
+        , {"won" ,":/icons/resources/circle_green.png"  }
+      };
+    }
+    else if ((idx.column() == APP_MODEL_COL_PROFIT           ) ||
+             (idx.column() == APP_MODEL_COL_PROFIT_PERCENTAGE))
     {
       double f64Profit = data(idx, Qt::DisplayRole).toDouble();
       RETURN_IF(f64Profit > 0.0, QColor(  0, 255,   0, 255)); /* green */
