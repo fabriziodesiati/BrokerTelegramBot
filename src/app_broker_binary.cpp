@@ -673,6 +673,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , status text \
         , profit real \
         , profit_percentage text \
+        , countdown int \
         , contract_type text NOT NULL \
         , symbolA text NOT NULL \
         , symbolB text NOT NULL \
@@ -863,7 +864,7 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
       "INSERT INTO proposals (\
         session_id, date_time, status, contract_type, symbolA, symbolB, amount\
         , currency) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10')")
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8')")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("status"))
@@ -1419,13 +1420,13 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , "date_expiry"
         , msg__proposal_open_contract__date_expiry)
         , "JSonValue 'date_expiry' doesn't exist", false);
-      int64_t msg__proposal_open_contract__entry_tick_time;
+      int64_t msg__proposal_open_contract__current_spot_time = 0;
       RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
-        , "entry_tick_time"
-        , msg__proposal_open_contract__entry_tick_time)
-        , "JSonValue 'entry_tick_time' doesn't exist", false);
+        , "current_spot_time"
+        , msg__proposal_open_contract__current_spot_time)
+        , "JSonValue 'current_spot_time' doesn't exist", false);
       int64_t i64CountDown = msg__proposal_open_contract__date_expiry 
-        - msg__proposal_open_contract__entry_tick_time;
+        - msg__proposal_open_contract__current_spot_time;
       mapValues.insert("contract_id", msg__proposal_open_contract__contract_id);
       mapValues.insert("is_expired" 
         , QString::number(msg__proposal_open_contract__is_expired));
