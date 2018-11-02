@@ -151,6 +151,9 @@ private:
     , QMap<QString,QString>& = QMap<QString,QString>());
   bool m_JSonObject(const QJsonObject&, const QString&, QJsonObject&);
   bool m_JSonValueStr(const QJsonObject&, const QString&, QString&);
+  bool m_JSonValueDouble(const QJsonObject&, const QString&, double&);
+  bool m_JSonValueStrOrLong(const QJsonObject&, const QString&, QString&);
+  bool m_JSonValueDoubleOrStr(const QJsonObject&, const QString&, double&);
   int64_t m_i64IdProposalByInfo(const QString&, const QString&);
 };
 

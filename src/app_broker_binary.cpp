@@ -394,6 +394,9 @@ void CAppBrokerBinary::slotOnDbConnected()
   /* Reload combo sessions */
   CATCH_ABORT_WDG(!m_ComboSessionLoad()
     , "Unable to load session list from database");
+  /* Reload proposals */
+  CATCH_ABORT_WDG(!m_DbProposalsRelaod()
+    , "Unable to load propsals from database");
   /* Open sockect connection */
   CATCH_ABORT_WDG(!m_SocketOpen(), "Unable to open socket connection");
 }
@@ -598,12 +601,14 @@ bool CAppBrokerBinary::m_DbCreateTables()
           id integer PRIMARY KEY AUTOINCREMENT \
         , session_id NOT NULL \
         , date_time text NOT NULL \
+        , status text \
+        , profit real \
+        , profit_percentage text \
         , contract_type text NOT NULL \
         , symbolA text NOT NULL \
         , symbolB text NOT NULL \
         , amount text NOT NULL \
         , currency text NOT NULL \
-        , status text \
         , balance_before text \
         , balance_after text \
         , proposal_id text \
@@ -676,20 +681,25 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
 bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
 {
   m_modelProposals.setQuery(
-    QString("SELECT * from propsals ORDER BY date_time DESC"));
+    QString("SELECT * from proposals ORDER BY date_time DESC"));
   /* Hide columns first time */
   static bool bHideColumns = true;
   static const QList<bool> listHiddenCols = QList<bool>()
     << true  //id
     << true  //session_id
+    << false //date_time
+    << false //status
+    << false //profit
+    << false //profit_percentage
     << false //contract_type
     << false //symbolA
     << false //symbolB
     << false //amount
-    << false //currency
-    << false //status
+    << false //currency    
     << false //balance_before
-    << false;//balance_after
+    << false //balance_after
+    << true  //proposal_id
+    << true; //contract_id;
   if (bHideColumns)
   {
     int iCol = 0;
@@ -703,9 +713,9 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
   if (bForceResize) {
     bResizeToContents = true;
   }
-  if (bResizeToContents && m_modelHistory.rowCount() > 0)
+  if (bResizeToContents && m_modelProposals.rowCount() > 0)
   { /* Reset column width based on size*/
-    for(auto iCol=0; iCol < m_modelHistory.columnCount(); ++iCol)
+    for(auto iCol=0; iCol < m_modelProposals.columnCount(); ++iCol)
     { // Resize only shown clolumns
       if (!listHiddenCols.at(iCol)) {
         ui->tbProposals->resizeColumnToContents(iCol);
@@ -1308,12 +1318,12 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , msg__proposal_open_contract)
         , "JSonObject 'proposal_open_contract' doesn't exist", false);
       QString msg__proposal_open_contract__contract_id;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
+      RETURN_IFW_WDG(!m_JSonValueStrOrLong(msg__proposal_open_contract
         , "contract_id"
         , msg__proposal_open_contract__contract_id)
-        , "JSonValue 'is_expired' doesn't exist", false);
-      QString msg__proposal_open_contract__is_expired;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
+        , "JSonValue 'contract_id' doesn't exist", false);
+      double msg__proposal_open_contract__is_expired;
+      RETURN_IFW_WDG(!m_JSonValueDouble(msg__proposal_open_contract
         , "is_expired"
         , msg__proposal_open_contract__is_expired)
         , "JSonValue 'is_expired' doesn't exist", false);
@@ -1322,28 +1332,40 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         , "status"
         , msg__proposal_open_contract__status)
         , "JSonValue 'status' doesn't exist", false);
+      double msg__proposal_open_contract__profit;
+      RETURN_IFW_WDG(!m_JSonValueDoubleOrStr(msg__proposal_open_contract
+        , "profit"
+        , msg__proposal_open_contract__profit)
+        , "JSonValue 'profit' doesn't exist", false);
+      QString msg__proposal_open_contract__profit_percentage;
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
+        , "profit_percentage"
+        , msg__proposal_open_contract__profit_percentage)
+        , "JSonValue 'profit_percentage' doesn't exist", false);
       mapValues.insert("contract_id", msg__proposal_open_contract__contract_id);
-      mapValues.insert("is_expired" , msg__proposal_open_contract__is_expired);
+      mapValues.insert("is_expired" 
+        , QString::number(msg__proposal_open_contract__is_expired));
       mapValues.insert("status"     , msg__proposal_open_contract__status);
-      if (msg__proposal_open_contract__is_expired != "1")
-      {
-        bInsertHistory = false;
-      }
-      else
-      { 
-        INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
-        int i64Id = m_i64IdProposalByInfo("contract_id"
-          , msg__proposal_open_contract__contract_id);
-        RETURN_IFW_WDG(-1 == i64Id
-          , QString("Cannot retrieve from Proposal Info a contract_id = %1")
-            .arg(msg__proposal_open_contract__contract_id)
-          , false);
-        /* Update proposal on database */
-        RETURN_IFW(!m_DbProposalUpdate(
-              {{"status", msg__proposal_open_contract__status}}
-            , i64Id)
-          , "Unable to update proposal on database", false);
-      }
+      mapValues.insert("profit"     
+        , QString::number(msg__proposal_open_contract__profit));
+      mapValues.insert("profit_percentage"
+        , msg__proposal_open_contract__profit_percentage);
+      bInsertHistory = msg__proposal_open_contract__is_expired;
+      INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
+      int i64Id = m_i64IdProposalByInfo("contract_id"
+        , msg__proposal_open_contract__contract_id);
+      RETURN_IFW_WDG(-1 == i64Id
+        , QString("Cannot retrieve from Proposal Info a contract_id = %1")
+          .arg(msg__proposal_open_contract__contract_id)
+        , false);
+      /* Update proposal on database */
+      RETURN_IFW(!m_DbProposalUpdate({
+              {"status", msg__proposal_open_contract__status}
+            , {"profit", QString::number(msg__proposal_open_contract__profit)}
+            , {"profit_percentage"
+              , msg__proposal_open_contract__profit_percentage}}
+          , i64Id)
+        , "Unable to update proposal on database", false);
     }
   }
   QString strParameters = QString("%1: ").arg(strMsgType);
@@ -1379,7 +1401,7 @@ bool CAppBrokerBinary::m_JSonObject(const QJsonObject& qJsonObjectParent
 }
 
 /* ==========================================================================
- *        FUNCTION NAME: m_JSonObject
+ *        FUNCTION NAME: m_JSonValueStr
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181023
  *              AUTHORS: Fabrizio De Siati
@@ -1394,6 +1416,77 @@ bool CAppBrokerBinary::m_JSonValueStr(const QJsonObject& qJsonObjectParent
   QJsonValue qJsonValue = qJsonObjectParent.value(strName);
   RETURN_IF(!qJsonValue.isString(), false);
   strValueRet = qJsonValue.toString();
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonValueDouble
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181023
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_JSonValueDouble(const QJsonObject& qJsonObjectParent
+  , const QString& strName, double& f64ValueRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  RETURN_IF(!qJsonValue.isDouble(), false);
+  f64ValueRet = qJsonValue.toDouble();
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonValueStrOrLong
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_JSonValueStrOrLong(const QJsonObject& qJsonObjectParent
+  , const QString& strName, QString& strValueRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  if (qJsonValue.isString()) {
+    strValueRet = qJsonValue.toString();
+  }
+  else if (qJsonValue.isDouble()) {
+    strValueRet = QString::number(static_cast<int64_t>(qJsonValue.toDouble()));
+  }
+  else {
+    RETURN_IF(true, false);
+  }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_JSonValueDoubleOrStr
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_JSonValueDoubleOrStr(const QJsonObject& qJsonObjectParent
+  , const QString& strName, double& f64ValueRet)
+{
+  RETURN_IF(qJsonObjectParent.isEmpty(), false);
+  RETURN_IF(!qJsonObjectParent.contains(strName), false);
+  QJsonValue qJsonValue = qJsonObjectParent.value(strName);
+  if (qJsonValue.isDouble()) {
+    f64ValueRet = qJsonValue.toDouble();
+  }
+  else if (qJsonValue.isString()) {
+    f64ValueRet = qJsonValue.toString().toDouble();
+  }
+  else {
+    RETURN_IF(true, false);
+  }
   return true;
 }
 
