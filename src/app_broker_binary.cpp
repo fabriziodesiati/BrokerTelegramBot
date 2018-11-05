@@ -759,6 +759,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     << false //status
     << false //profit
     << false //profit_percentage
+    << false //countdown
     << false //contract_type
     << false //symbolA
     << false //symbolB
