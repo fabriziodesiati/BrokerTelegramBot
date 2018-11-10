@@ -88,14 +88,16 @@ QVariant CAppModelHistory::data(const QModelIndex &idx, int role) const
     {
       QModelIndex idxOperation = createIndex(idx.row(),APP_MODEL_COL_OPERATION);
       QString strOperation = data(idxOperation, Qt::DisplayRole).toString();
-      RETURN_IF("SOCK OPEN" == strOperation
-        , QIcon{QPixmap{":/icons/resources/history_sock_conn.png"}});
-      RETURN_IF("SOCK RECV" == strOperation
-        , QIcon{QPixmap{":/icons/resources/history_sock_recv.png"}});
-      RETURN_IF("SOCK SEND" == strOperation
-        , QIcon{QPixmap{":/icons/resources/history_sock_send.png"}});
-      RETURN_IF("TBOT RECV" == strOperation
-        , QIcon{QPixmap{":/icons/resources/history_tbot_recv.png"}});
+      static const QMap<QString, QString> mapOper2Img {
+          {"SOCK OPEN", ":/icons/resources/history_sock_open.png"}
+        , {"SOCK CONN", ":/icons/resources/history_sock_conn.png"}
+        , {"SOCK DISC", ":/icons/resources/history_sock_disc.png"}
+        , {"SOCK RECV", ":/icons/resources/history_sock_recv.png"}
+        , {"SOCK SEND", ":/icons/resources/history_sock_send.png"}
+        , {"TBOT RECV", ":/icons/resources/history_tbot_recv.png"}
+      };
+      RETURN_IF(mapOper2Img.contains(strOperation)
+        , QIcon{QPixmap{mapOper2Img.value(strOperation)}});
     }
   }
   return QSqlQueryModel::data(idx, role);

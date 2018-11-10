@@ -292,6 +292,10 @@ CAppBrokerBinary::~CAppBrokerBinary()
 void CAppBrokerBinary::slotOnSocketConnected()
 {
   DEBUG_APP_WDG("WebSocket connected", "");
+  CATCH_ABORT_WDG(!m_DbHistoryInsert({
+      {"operation" , "SOCK CONN"}
+    , {"parameters", m_url.toString()}})
+    , "Unable to insert history record on database");
   static bool bFirstTime = true;
   if (bFirstTime) {
     connect(&m_webSocket
@@ -313,6 +317,10 @@ void CAppBrokerBinary::slotOnSocketConnected()
 void CAppBrokerBinary::slotOnSocketDisconnected()
 {
   DEBUG_APP_WDG("WebSocket disconnected", "");
+  CATCH_ABORT_WDG(!m_DbHistoryInsert({
+      {"operation" , "SOCK DISC"}
+    , {"parameters", m_url.toString()}})
+    , "Unable to insert history record on database");
   // Reconnect socket
   m_bFirstAuthorized = true;
   CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
@@ -1092,18 +1100,17 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
       .strProposalId;
     QString strPrice = m_mapProposalId2Info.value(m_i64LastIdProposal)
       .strPrice;
-    QString strBuySell = strContractType == "CALL" ? "buy" : "sell";
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, m_i64LastIdProposal)
       , "Unable to update proposal on database", false);
     /* reset last proposal: all next queries pass by map */
     m_i64LastIdProposal = -1;
     m_StatusUpdate(Status::kAUTHORIZED);
-    // buy/sell
-    RETURN_IFW_WDG(!m_SendSocketMessage(strBuySell
+    // buy
+    RETURN_IFW_WDG(!m_SendSocketMessage("buy"
         , { 
-              {strBuySell, strProposalId} 
-            , {"price"   , strPrice}
+              {"buy"  , strProposalId} 
+            , {"price", strPrice}
           })
       , "Error on send proposal request", false);    
   }
@@ -1177,7 +1184,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     m_i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
     RETURN_IFW(-1 == m_i64LastIdProposal
       , "Unable to insert proposal on database", false);
-    // store contract_type and price to send buy (CALL) or sell (PUT) request
+    // store contract_type and price to send buy fro CALL or PUT request
     sProposalInfo info;
     info.strProposalId = "";
     info.strContractId = "";
@@ -1187,14 +1194,13 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.i64CountDown = 0;
     m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
   }
-  else if (("buy" == strMsgType) || ("sell" == strMsgType))
-  { /* buy or sell */
+  else if ("buy" == strMsgType)
+  { /* buy */
     strMsg = QStringLiteral(
       "{                          \
-        \"%1\": \"%2\",          \
-        \"price\": %3             \
+        \"buy\": \"%1\",          \
+        \"price\": %2             \
        }")
-      .arg(strMsgType)
       .arg(mapValues.value(strMsgType))
       .arg(mapValues.value("price"));
     /* Update proposal on database */
@@ -1344,43 +1350,43 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       /* Update Status: WAIT FOR CONFIRM */
       m_StatusUpdate(Status::kWAITFORCON);
     }
-    else if (("buy" == strMsgType) || ("sell" == strMsgType))
+    else if ("buy" == strMsgType)
     { /* Buy wait feedback */
-      QJsonObject msg__buyORsell;
-      RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buyORsell)
-        , "JSonObject 'buy/sell' doesn't exist", false);
-      QString msg__buyORsell__contract_id;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__buyORsell, "contract_id"
-        , msg__buyORsell__contract_id)
+      QJsonObject msg__buy;
+      RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buy)
+        , "JSonObject 'buyl' doesn't exist", false);
+      QString msg__buy__contract_id;
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "contract_id"
+        , msg__buy__contract_id)
         , "JSonValue 'balance_after' doesn't exist", false);
       QJsonObject msg__echo_req;
       RETURN_IFW_WDG(!m_JSonObject(msg, "echo_req", msg__echo_req)
         , "JSonObject 'echo_req' doesn't exist", false);
-      QString msg__echo_req__buyORsell;
+      QString msg__echo_req__buy;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__echo_req, strMsgType
-        , msg__echo_req__buyORsell)
-        , "JSonValue 'buy/sell' doesn't exist", false);
-      INFO_APP_WDG("contract_id:", msg__buyORsell__contract_id);
-      mapValues.insert("contract_id", msg__buyORsell__contract_id);
+        , msg__echo_req__buy)
+        , "JSonValue 'buy' doesn't exist", false);
+      INFO_APP_WDG("contract_id:", msg__buy__contract_id);
+      mapValues.insert("contract_id", msg__buy__contract_id);
       /* update map Proposal with ContractId */
       sProposalInfo info;
       int i64Id = m_i64IdProposalByInfo("proposal_id"
-        , msg__echo_req__buyORsell, info);
+        , msg__echo_req__buy, info);
       RETURN_IFW_WDG(-1 == i64Id
         , QString("Cannot retrieve from Proposal Info a proposal_id = %1")
-          .arg(msg__echo_req__buyORsell)
+          .arg(msg__echo_req__buy)
         , false);
-      info.strContractId = msg__buyORsell__contract_id;
+      info.strContractId = msg__buy__contract_id;
       m_mapProposalId2Info.insert(i64Id, info);
       /* Update proposal on database */
       RETURN_IFW(!m_DbProposalUpdate(
             {{"status"     , QString("%1 recv").arg(strMsgType)},
-             {"contract_id", msg__buyORsell__contract_id       }}
+             {"contract_id", msg__buy__contract_id       }}
           , i64Id)
         , "Unable to update proposal on database", false);
       /* Send proposal_open_contract */
       RETURN_IFW_WDG(!m_SendSocketMessage("proposal_open_contract"
-        , {{"contract_id",msg__buyORsell__contract_id}})
+        , {{"contract_id",msg__buy__contract_id}})
         , "Error on send proposal_open_contract request", false);
       /* Update Status: AUTHORIZED */
       m_StatusUpdate(Status::kAUTHORIZED);
