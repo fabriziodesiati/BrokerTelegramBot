@@ -347,8 +347,6 @@ void CAppBrokerBinary::slotOnSocketDisconnected()
     , {"parameters", m_url.toString()}})
     , "Unable to insert history record on database");
   // Reconnect socket
-  m_bFirstAuthorized = true;
-  m_bSocketOpened = false;
   CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
   //emit closed();
 }
@@ -500,8 +498,6 @@ void CAppBrokerBinary::slotOnTimeout()
         , {"parameters", "Timeout on receive socket response"}})
         , "Unable to insert history record on database");
       // Reconnect socket
-      m_bFirstAuthorized = true;
-      m_bSocketOpened = false;
       CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
     }
   }
@@ -614,7 +610,7 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
       palette.setColor(QPalette::ToolTipText, Qt::white);
       palette.setColor(QPalette::Text, Qt::white);
       palette.setColor(QPalette::Button, QColor(100, 100, 100));
-      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::Disabled, QPalette::Button,QColor(40, 40, 40));
       palette.setColor(QPalette::ButtonText, Qt::white);
       palette.setColor(QPalette::Disabled, QPalette::ButtonText, Qt::lightGray);
       palette.setColor(QPalette::BrightText, Qt::red);
@@ -637,7 +633,7 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
       palette.setColor(QPalette::ToolTipText, Qt::white);
       palette.setColor(QPalette::Text, Qt::white);
       palette.setColor(QPalette::Button, QColor(0x90, 0xAF, 0xC5));
-      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::Disabled, QPalette::Button,QColor(40, 40, 40));
       palette.setColor(QPalette::ButtonText, QColor(0x76, 0x36, 0x26));
       palette.setColor(QPalette::BrightText, Qt::red);
       palette.setColor(QPalette::Link, QColor(42, 130, 218));
@@ -659,7 +655,7 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
       palette.setColor(QPalette::ToolTipText, Qt::white);
       palette.setColor(QPalette::Text, Qt::white);
       palette.setColor(QPalette::Button, QColor(0xBA, 0x55, 0x36));
-      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::Disabled, QPalette::Button,QColor(40, 40, 40));
       palette.setColor(QPalette::ButtonText, Qt::white);
       palette.setColor(QPalette::BrightText, Qt::red);
       palette.setColor(QPalette::Link, QColor(42, 130, 218));
@@ -681,7 +677,7 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
       palette.setColor(QPalette::ToolTipText, Qt::white);
       palette.setColor(QPalette::Text, Qt::white);
       palette.setColor(QPalette::Button, QColor(0x68, 0x82, 0x9E));
-      palette.setColor(QPalette::Disabled, QPalette::Button, QColor(40, 40, 40));
+      palette.setColor(QPalette::Disabled, QPalette::Button,QColor(40, 40, 40));
       palette.setColor(QPalette::ButtonText, Qt::white);
       palette.setColor(QPalette::BrightText, Qt::red);
       palette.setColor(QPalette::Link, QColor(42, 130, 218));
@@ -987,8 +983,9 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   const QString strQuery = "SELECT DISTINCT id, date_time FROM sessions \
                             ORDER BY date_time DESC";
   QSqlQuery qry;
-  RETURN_IFW_WDG(!qry.exec(strQuery), QString("Unable to execute query [%1] E=%2")
-    .arg(strQuery).arg(qry.lastError().text()), false);
+  RETURN_IFW_WDG(!qry.exec(strQuery)
+    , QString("Unable to execute query [%1] E=%2")
+      .arg(strQuery).arg(qry.lastError().text()), false);
   /* Add entry for ALL */
   QStringList listItems = QStringList() << "ALL";
   QString strSelected;
@@ -1022,6 +1019,11 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
 bool CAppBrokerBinary::m_SocketOpen()
 {
   DEBUG_APP_WDG("WebSocket server", m_url.toString());
+  m_webSocket.close();
+  m_bFirstAuthorized = true;
+  m_bSocketOpened = false;
+  ui->sbReqIdSent->setValue(0);
+  ui->sbReqIdRecv->setValue(0);
   CATCH_ABORT_WDG(!m_DbHistoryInsert({
       {"operation" , "SOCK OPEN"}
     , {"parameters", m_url.toString()}})
@@ -1680,8 +1682,9 @@ bool CAppBrokerBinary::m_JSonValueStrOrLong(const QJsonObject& qJsonObjectParent
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_JSonValueDoubleOrStr(const QJsonObject& qJsonObjectParent
-  , const QString& strName, double& f64ValueRet)
+bool CAppBrokerBinary::m_JSonValueDoubleOrStr(
+    const QJsonObject& qJsonObjectParent, const QString& strName
+  , double& f64ValueRet)
 {
   RETURN_IF(qJsonObjectParent.isEmpty(), false);
   RETURN_IF(!qJsonObjectParent.contains(strName), false);
@@ -1761,7 +1764,8 @@ bool CAppBrokerBinary::m_ProposalResumeUpdate()
       ui->leProposalsTotal->setText(QString("TOT: %1").arg(qV.toInt()));
     }
     else if ("SOLD" == strRole) {
-      ui->leProposalsOpenSold->setText(QString("OPEN/SOLD: %1").arg(qV.toInt()));
+      ui->leProposalsOpenSold->setText(QString("OPEN/SOLD: %1")
+        .arg(qV.toInt()));
     }
     else if ("LOST" == strRole) {
       ui->leProposalsLost->setText(QString("LOST: %1").arg(qV.toInt()));
