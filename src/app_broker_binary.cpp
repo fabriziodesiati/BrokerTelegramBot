@@ -34,6 +34,8 @@
  * MODULE PRIVATE MACROS
  * ========================================================================== */
 #define APP_DEBUG 1
+#define APP_BROKER_BINARY_TIMEOUT_MS  5000
+#define APP_BROKER_BINARY_RECV_TICK   3
 
 /**
  * Calls the wdg/message handler with the debug function/message.
@@ -183,6 +185,7 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_strAppId             {              app_id }
 , m_strToken             {               token }
 , m_strTokenBot          {            tokenBot }
+, m_bSocketOpened        {               false }
 , m_bFirstAuthorized     {                true }
 , m_strBalanceStart      {                  "" }
 , m_i64SessionId         {                  -1 }
@@ -266,6 +269,11 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 
   /* Update Status: INITIALIZE */
   m_StatusUpdate(Status::kINITIALIZE);
+
+  QTimer* pTimer = new QTimer{ this };
+  pTimer->setInterval(APP_BROKER_BINARY_TIMEOUT_MS);
+  connect(pTimer, SIGNAL(timeout()), SLOT(slotOnTimeout()));
+  pTimer->start();
 }
 
 /* ==========================================================================
@@ -279,6 +287,23 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 CAppBrokerBinary::~CAppBrokerBinary()
 {
   delete uiMain;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnSocketError
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181111
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnSocketError(QAbstractSocket::SocketError)
+{
+  DEBUG_APP_WDG("WebSocket error", m_webSocket.errorString());
+  CATCH_ABORT_WDG(!m_DbHistoryInsert({
+      {"operation" , "SOCK ERRO"}
+    , {"parameters", m_webSocket.errorString()}})
+    , "Unable to insert history record on database");
 }
 
 /* ==========================================================================
@@ -323,6 +348,7 @@ void CAppBrokerBinary::slotOnSocketDisconnected()
     , "Unable to insert history record on database");
   // Reconnect socket
   m_bFirstAuthorized = true;
+  m_bSocketOpened = false;
   CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
   //emit closed();
 }
@@ -454,6 +480,34 @@ void CAppBrokerBinary::slotOnItemSelectedProposal(const QItemSelection& sel
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnTimeout
+ * FUNCTION DESCRIPTION:
+ *        CREATION DATE: 20181111
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnTimeout()
+{
+  RETURN_IF(!m_bSocketOpened, );
+  static uint8_t u8Tick = APP_BROKER_BINARY_RECV_TICK;
+  if (ui->sbReqIdSent->value() != ui->sbReqIdRecv->value()) {
+    if (0 == --u8Tick) {
+      u8Tick = APP_BROKER_BINARY_RECV_TICK;
+      DEBUG_APP_WDG("WebSocket error", "Timeout on receive socket response");
+      CATCH_ABORT_WDG(!m_DbHistoryInsert({
+          {"operation" , "SOCK ERRO"}
+        , {"parameters", "Timeout on receive socket response"}})
+        , "Unable to insert history record on database");
+      // Reconnect socket
+      m_bFirstAuthorized = true;
+      m_bSocketOpened = false;
+      CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
+    }
+  }
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnDbConnected
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -482,7 +536,7 @@ void CAppBrokerBinary::slotOnDbConnected()
  *        FUNCTION NAME: m_statusUpdate
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181030
- *              AUTHORS: Michele Iacobellis
+ *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
@@ -504,7 +558,7 @@ void CAppBrokerBinary::m_StatusUpdate(Status status)
  *        FUNCTION NAME: m_LookApply
  * FUNCTION DESCRIPTION: apply look and theme
  *        CREATION DATE: 20181030
- *              AUTHORS: Michele Iacobellis
+ *              AUTHORS: Fabrizio De Siati
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
@@ -975,6 +1029,8 @@ bool CAppBrokerBinary::m_SocketOpen()
   static bool bFirstTime = true;
   if (bFirstTime) {
     /* Connect signals and slots for socket */
+    connect(&m_webSocket, SIGNAL(error(QAbstractSocket::SocketError))
+      , SLOT(slotOnSocketError(QAbstractSocket::SocketError)));
     connect(&m_webSocket, SIGNAL(connected()),   SLOT(slotOnSocketConnected()));
     connect(&m_webSocket, SIGNAL(disconnected()),SLOT(slotOnSocketConnected()));
     /* Start bot */
@@ -982,6 +1038,7 @@ bool CAppBrokerBinary::m_SocketOpen()
     bFirstTime = false;
   }
   m_webSocket.open(QUrl(m_url));
+  m_bSocketOpened = true;
   return true;
 }
 
@@ -1145,22 +1202,29 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   // Prepare Send in JSon format
   if      ("authorize" == strMsgType)
   { /* authorize */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                     \
         \"authorize\": \"%1\"\
+        \"req_id\": %2       \
        }")
-      .arg(mapValues.value("authorize"));
+      .arg(mapValues.value("authorize"))
+      .arg(ui->sbReqIdSent->value());
   }
   else if ("balance" == strMsgType)
-  { /* authorize */
+  { /* balance */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                     \
-        \"balance\": 1,\
-        \"subscribe\": 1\
-       }");
+        \"balance\": 1,      \
+        \"subscribe\": 1     \
+        \"req_id\": %1       \
+       }")
+      .arg(ui->sbReqIdSent->value());
   }
   else if ("proposal" == strMsgType)
   { /* proposal */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                          \
         \"proposal\": 1,          \
@@ -1171,13 +1235,15 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
         \"duration\": \"%4\",     \
         \"duration_unit\": \"%5\",\
         \"symbol\": \"%6\"        \
+        \"req_id\": %7            \
        }")
       .arg(mapValues.value("amount"))
       .arg(mapValues.value("contract_type"))
       .arg(mapValues.value("currency"))
       .arg(mapValues.value("duration"))
       .arg(mapValues.value("duration_unit"))
-      .arg(mapValues.value("symbol"));
+      .arg(mapValues.value("symbol"))
+      .arg(ui->sbReqIdSent->value());
     /* Insert proposal on database */
     QMap<QString, QString> mapValuesDbInsert = mapValues;
     mapValuesDbInsert.insert("status", "proposal send");
@@ -1196,13 +1262,16 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   }
   else if ("buy" == strMsgType)
   { /* buy */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                          \
         \"buy\": \"%1\",          \
         \"price\": %2             \
+        \"req_id\": %3            \
        }")
       .arg(mapValues.value(strMsgType))
-      .arg(mapValues.value("price"));
+      .arg(mapValues.value("price"))
+      .arg(ui->sbReqIdSent->value());
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate(
           {{"status", QString("%1 send").arg(strMsgType)}}
@@ -1211,13 +1280,16 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   }
   else if ("proposal_open_contract" == strMsgType)
   { /* proposal_open_contract */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                               \
         \"proposal_open_contract\": 1, \
         \"contract_id\": %1,           \
         \"subscribe\": 1               \
+        \"req_id\": %2                 \
        }")
-      .arg(mapValues.value("contract_id"));
+      .arg(mapValues.value("contract_id"))
+      .arg(ui->sbReqIdSent->value());
   }
   else {
     RETURN_IFW_WDG(true, QString("Message type %1 is unrecognized").arg(strMsgType)
@@ -1260,9 +1332,13 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   bool bInsertHistory = true;
+  int64_t i64ReqIdRecv;
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
     QString msg__error__code;
+    if (m_JSonValueLong(msg__error, "req_id", i64ReqIdRecv)) {
+      ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+    }
     RETURN_IFW_WDG(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
       , "JSonValue 'code' doesn't exist", false);
     QString msg__error__message;
@@ -1283,6 +1359,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__authorize;
       RETURN_IFW_WDG(!m_JSonObject(msg, "authorize", msg__authorize)
         , "JSonObject 'authorize' doesn't exist", false);
+      if (m_JSonValueLong(msg__authorize, "req_id", i64ReqIdRecv)) {
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
       QString msg__authorize__balance;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "balance"
         , msg__authorize__balance)
@@ -1313,6 +1392,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__balance;
       RETURN_IFW_WDG(!m_JSonObject(msg, "balance", msg__balance)
         , "JSonObject 'balance' doesn't exist", false);
+      if (m_JSonValueLong(msg__balance, "req_id", i64ReqIdRecv)) {
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
       QString msg__balance__balance;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__balance, "balance"
         , msg__balance__balance)
@@ -1323,11 +1405,14 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     }
     else if ("proposal" == strMsgType) 
     { /* Proposal wait feedback */
-      QJsonObject msg__authorize;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__authorize)
+      QJsonObject msg__proposal;
+      RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__proposal)
         , "JSonObject 'proposal' doesn't exist", false);
+      if (m_JSonValueLong(msg__proposal, "req_id", i64ReqIdRecv)) {
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
       QString msg__proposal__id;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "id"
+      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal, "id"
         , msg__proposal__id)
         , "JSonValue 'id' doesn't exist", false);
       INFO_APP_WDG("id proposal:", msg__proposal__id);
@@ -1354,7 +1439,10 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     { /* Buy wait feedback */
       QJsonObject msg__buy;
       RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buy)
-        , "JSonObject 'buyl' doesn't exist", false);
+        , "JSonObject 'buy' doesn't exist", false);
+      if (m_JSonValueLong(msg__buy, "req_id", i64ReqIdRecv)) {
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
       QString msg__buy__contract_id;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "contract_id"
         , msg__buy__contract_id)
@@ -1397,6 +1485,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       RETURN_IFW_WDG(!m_JSonObject(msg, "proposal_open_contract"
         , msg__proposal_open_contract)
         , "JSonObject 'proposal_open_contract' doesn't exist", false);
+      if (m_JSonValueLong(msg__proposal_open_contract, "req_id", i64ReqIdRecv)){
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
       QString msg__proposal_open_contract__contract_id;
       RETURN_IFW_WDG(!m_JSonValueStrOrLong(msg__proposal_open_contract
         , "contract_id"

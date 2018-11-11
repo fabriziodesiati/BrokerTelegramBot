@@ -94,6 +94,7 @@ signals:
   void closed();
 
 public slots:
+  void slotOnSocketError(QAbstractSocket::SocketError);
   void slotOnSocketConnected();
   void slotOnSocketDisconnected();
   void slotOnMessageSocketReceived(const QString&);
@@ -103,6 +104,7 @@ public slots:
   void slotOnBalanceClicked();
   void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
   void slotOnItemSelectedProposal(const QItemSelection&, const QItemSelection&);
+  void slotOnTimeout();
 
 protected slots:
   void slotOnDbConnected();
@@ -125,8 +127,9 @@ private:
 
   QString m_strAppId;
   QString m_strToken;
-  QString m_strTokenBot;  
+  QString m_strTokenBot;
 
+  bool m_bSocketOpened;
   bool m_bFirstAuthorized;
   QString m_strBalanceStart;
   int64_t m_i64SessionId;

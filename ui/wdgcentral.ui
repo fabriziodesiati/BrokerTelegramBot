@@ -136,6 +136,27 @@
       </spacer>
      </item>
      <item>
+      <widget class="QLabel" name="labelReqIdSentRecv">
+       <property name="text">
+        <string>req_id(sent/recv)</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="sbReqIdSent">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="sbReqIdRecv">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QLabel" name="labelProposal">
        <property name="text">
         <string>Proposal:</string>

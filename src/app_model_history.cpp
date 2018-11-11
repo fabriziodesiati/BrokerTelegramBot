@@ -89,7 +89,8 @@ QVariant CAppModelHistory::data(const QModelIndex &idx, int role) const
       QModelIndex idxOperation = createIndex(idx.row(),APP_MODEL_COL_OPERATION);
       QString strOperation = data(idxOperation, Qt::DisplayRole).toString();
       static const QMap<QString, QString> mapOper2Img {
-          {"SOCK OPEN", ":/icons/resources/history_sock_open.png"}
+          {"SOCK ERRO", ":/icons/resources/history_sock_erro.png"}
+        , {"SOCK OPEN", ":/icons/resources/history_sock_open.png"}
         , {"SOCK CONN", ":/icons/resources/history_sock_conn.png"}
         , {"SOCK DISC", ":/icons/resources/history_sock_disc.png"}
         , {"SOCK RECV", ":/icons/resources/history_sock_recv.png"}
