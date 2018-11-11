@@ -1206,9 +1206,9 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   { /* authorize */
     ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
-      "{                     \
-        \"authorize\": \"%1\"\
-        \"req_id\": %2       \
+      "{                      \
+        \"authorize\": \"%1\",\
+        \"req_id\": %2        \
        }")
       .arg(mapValues.value("authorize"))
       .arg(ui->sbReqIdSent->value());
@@ -1217,10 +1217,10 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   { /* balance */
     ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
-      "{                     \
-        \"balance\": 1,      \
-        \"subscribe\": 1     \
-        \"req_id\": %1       \
+      "{                 \
+        \"balance\": 1,  \
+        \"subscribe\": 1,\
+        \"req_id\": %1   \
        }")
       .arg(ui->sbReqIdSent->value());
   }
@@ -1236,7 +1236,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
         \"currency\": \"%3\",     \
         \"duration\": \"%4\",     \
         \"duration_unit\": \"%5\",\
-        \"symbol\": \"%6\"        \
+        \"symbol\": \"%6\",       \
         \"req_id\": %7            \
        }")
       .arg(mapValues.value("amount"))
@@ -1268,7 +1268,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     strMsg = QStringLiteral(
       "{                          \
         \"buy\": \"%1\",          \
-        \"price\": %2             \
+        \"price\": %2,            \
         \"req_id\": %3            \
        }")
       .arg(mapValues.value(strMsgType))
@@ -1287,7 +1287,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       "{                               \
         \"proposal_open_contract\": 1, \
         \"contract_id\": %1,           \
-        \"subscribe\": 1               \
+        \"subscribe\": 1,              \
         \"req_id\": %2                 \
        }")
       .arg(mapValues.value("contract_id"))
@@ -1334,13 +1334,15 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   bool bInsertHistory = true;
+  /* Update req_id for repsonses */
   int64_t i64ReqIdRecv;
+  if (m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) {
+    ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+  }
+  /* Checks if message is error */
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
     QString msg__error__code;
-    if (m_JSonValueLong(msg__error, "req_id", i64ReqIdRecv)) {
-      ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-    }
     RETURN_IFW_WDG(!m_JSonValueStr(msg__error, "code"   , msg__error__code)
       , "JSonValue 'code' doesn't exist", false);
     QString msg__error__message;
@@ -1353,7 +1355,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     mapValues.insert("message", msg__error__message);
   }
   else
-  { /* DECODE RESPONSE based on msg_type */
+  { /* Decode response based on msg_type */
     RETURN_IFW_WDG(!m_JSonValueStr(msg, "msg_type", strMsgType)
       , "JSonValue 'msg_type' doesn't exist", false);
     if      ("authorize" == strMsgType) 
@@ -1361,9 +1363,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__authorize;
       RETURN_IFW_WDG(!m_JSonObject(msg, "authorize", msg__authorize)
         , "JSonObject 'authorize' doesn't exist", false);
-      if (m_JSonValueLong(msg__authorize, "req_id", i64ReqIdRecv)) {
-        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-      }
       QString msg__authorize__balance;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "balance"
         , msg__authorize__balance)
@@ -1394,9 +1393,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__balance;
       RETURN_IFW_WDG(!m_JSonObject(msg, "balance", msg__balance)
         , "JSonObject 'balance' doesn't exist", false);
-      if (m_JSonValueLong(msg__balance, "req_id", i64ReqIdRecv)) {
-        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-      }
       QString msg__balance__balance;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__balance, "balance"
         , msg__balance__balance)
@@ -1410,9 +1406,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__proposal;
       RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__proposal)
         , "JSonObject 'proposal' doesn't exist", false);
-      if (m_JSonValueLong(msg__proposal, "req_id", i64ReqIdRecv)) {
-        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-      }
       QString msg__proposal__id;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal, "id"
         , msg__proposal__id)
@@ -1442,9 +1435,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       QJsonObject msg__buy;
       RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buy)
         , "JSonObject 'buy' doesn't exist", false);
-      if (m_JSonValueLong(msg__buy, "req_id", i64ReqIdRecv)) {
-        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-      }
       QString msg__buy__contract_id;
       RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "contract_id"
         , msg__buy__contract_id)
@@ -1487,9 +1477,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       RETURN_IFW_WDG(!m_JSonObject(msg, "proposal_open_contract"
         , msg__proposal_open_contract)
         , "JSonObject 'proposal_open_contract' doesn't exist", false);
-      if (m_JSonValueLong(msg__proposal_open_contract, "req_id", i64ReqIdRecv)){
-        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-      }
       QString msg__proposal_open_contract__contract_id;
       RETURN_IFW_WDG(!m_JSonValueStrOrLong(msg__proposal_open_contract
         , "contract_id"
