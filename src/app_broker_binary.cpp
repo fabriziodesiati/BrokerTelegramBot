@@ -886,6 +886,8 @@ int64_t CAppBrokerBinary::m_DbSessionInsert()
 int64_t CAppBrokerBinary::m_DbHistoryInsert(
   const QMap<QString,QString>& mapValues)
 {
+  //Alert if new message is inserted and application isn't at top level
+  QApplication::alert(this,0);
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO history (\
         session_id, date_time, operation, balance, currency, parameters\
