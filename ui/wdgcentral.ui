@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>514</width>
+    <width>682</width>
     <height>458</height>
    </rect>
   </property>
@@ -147,12 +147,18 @@
        <property name="readOnly">
         <bool>true</bool>
        </property>
+       <property name="maximum">
+        <number>999999999</number>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QSpinBox" name="sbPongRecv">
        <property name="readOnly">
         <bool>true</bool>
+       </property>
+       <property name="maximum">
+        <number>999999999</number>
        </property>
       </widget>
      </item>
@@ -168,12 +174,18 @@
        <property name="readOnly">
         <bool>true</bool>
        </property>
+       <property name="maximum">
+        <number>999999999</number>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QSpinBox" name="sbReqIdRecv">
        <property name="readOnly">
         <bool>true</bool>
+       </property>
+       <property name="maximum">
+        <number>999999999</number>
        </property>
       </widget>
      </item>
