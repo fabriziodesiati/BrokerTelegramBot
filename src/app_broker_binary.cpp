@@ -34,7 +34,7 @@
  * MODULE PRIVATE MACROS
  * ========================================================================== */
 #define APP_DEBUG 1
-#define APP_BROKER_BINARY_TIMEOUT_MS  5000
+#define APP_BROKER_BINARY_TIMEOUT_MS  10000
 #define APP_BROKER_BINARY_RECV_TICK   3
 
 /**
@@ -489,10 +489,30 @@ void CAppBrokerBinary::slotOnTimeout()
 {
   RETURN_IF(!m_bSocketOpened, );
   static uint8_t u8Tick = APP_BROKER_BINARY_RECV_TICK;
-  if (ui->sbReqIdSent->value() != ui->sbReqIdRecv->value()) {
+  if (m_bFirstAuthorized) {
+    /* Monitor Authorization */
     if (0 == --u8Tick) {
       u8Tick = APP_BROKER_BINARY_RECV_TICK;
-      DEBUG_APP_WDG("WebSocket error", "Timeout on receive socket response");
+      DEBUG_APP_WDG("WebSocket error", "Timeout on receive authorization");
+      CATCH_ABORT_WDG(!m_DbHistoryInsert({
+          {"operation" , "SOCK ERRO"}
+        , {"parameters", "Timeout on receive authorization"}})
+        , "Unable to insert history record on database");
+      // Reconnect socket
+      CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
+    }
+  }
+  else if (ui->sbPingSent->value() == ui->sbPongRecv->value()) {
+    /* Send Ping request */
+    u8Tick = APP_BROKER_BINARY_RECV_TICK;
+    RETURN_IFW_WDG(!m_SendSocketMessage("ping")
+      , "Error on send ping request", );
+  }
+  if (ui->sbPingSent->value() != ui->sbPongRecv->value()) {
+    /* Monitor Pong response */
+    if (0 == --u8Tick) {
+      u8Tick = APP_BROKER_BINARY_RECV_TICK;
+      DEBUG_APP_WDG("WebSocket error", "Timeout on receive ping/pong response");
       CATCH_ABORT_WDG(!m_DbHistoryInsert({
           {"operation" , "SOCK ERRO"}
         , {"parameters", "Timeout on receive socket response"}})
@@ -1024,8 +1044,8 @@ bool CAppBrokerBinary::m_SocketOpen()
   m_webSocket.close();
   m_bFirstAuthorized = true;
   m_bSocketOpened = false;
-  ui->sbReqIdSent->setValue(0);
-  ui->sbReqIdRecv->setValue(0);
+  ui->sbPingSent->setValue(0);
+  ui->sbPongRecv->setValue(0);
   CATCH_ABORT_WDG(!m_DbHistoryInsert({
       {"operation" , "SOCK OPEN"}
     , {"parameters", m_url.toString()}})
@@ -1203,8 +1223,20 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   , const QMap<QString,QString>& mapValues, QString& strMsg)
 {
   strMsg = "";
+  bool bInsertHistory = true;
   // Prepare Send in JSon format
-  if      ("authorize" == strMsgType)
+  if      ("ping" == strMsgType)
+  { /* ping */
+    bInsertHistory = false;
+    ui->sbPingSent->setValue(ui->sbPingSent->value() + 1);
+    strMsg = QStringLiteral(
+      "{              \
+        \"ping\": 1,  \
+        \"req_id\": %1\
+       }")
+      .arg(ui->sbPingSent->value());
+  }
+  else if      ("authorize" == strMsgType)
   { /* authorize */
     ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
@@ -1307,7 +1339,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       strParameters.append(QString("%1=%2, ")
         .arg(str).arg(mapValues.value(str)));
     }
-    RETURN_IFW_WDG(!m_DbHistoryInsert({
+    RETURN_IFW_WDG(bInsertHistory && !m_DbHistoryInsert({
         {"operation" , "SOCK SEND"}
       , {"parameters", strParameters}
       , {"details"   , strMsg} })
@@ -1338,9 +1370,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   bool bInsertHistory = true;
   /* Update req_id for repsonses */
   int64_t i64ReqIdRecv;
-  if (m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) {
-    ui->sbReqIdRecv->setValue(i64ReqIdRecv);
-  }
   /* Checks if message is error */
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
@@ -1360,192 +1389,212 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   { /* Decode response based on msg_type */
     RETURN_IFW_WDG(!m_JSonValueStr(msg, "msg_type", strMsgType)
       , "JSonValue 'msg_type' doesn't exist", false);
-    if      ("authorize" == strMsgType) 
-    { /* First message to authorize application */
-      QJsonObject msg__authorize;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "authorize", msg__authorize)
-        , "JSonObject 'authorize' doesn't exist", false);
-      QString msg__authorize__balance;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "balance"
-        , msg__authorize__balance)
-        , "JSonValue 'balance' doesn't exist", false);
-      QString msg__authorize__currency;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "currency"
-        , msg__authorize__currency)
-        , "JSonValue 'currency' doesn't exist", false);
-      INFO_APP_WDG("balance:", msg__authorize__currency);
-      // Save start balance
-      if (m_strBalanceStart.isEmpty()) {
-        m_strBalanceStart = msg__authorize__balance;
+    if      ("ping" == strMsgType) 
+    { /* Pong response */
+      bInsertHistory = false;
+      if (m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) {
+        ui->sbPongRecv->setValue(i64ReqIdRecv);
       }
-      m_BalanceUpdate(msg__authorize__balance);
-      ui->leCurrency->setText(msg__authorize__currency);
-      mapValues.insert("balance", msg__authorize__balance);
-      mapValues.insert("currency", msg__authorize__currency);
-      /* Update Status: AUTHORIZED (only first time) */
-      if (m_bFirstAuthorized) {
+      QString msg__ping;
+      RETURN_IFW_WDG(!m_JSonValueStr(msg, "ping"
+        , msg__ping)
+        , "JSonValue 'ping' doesn't exist", false);
+      INFO_APP_WDG("ping:", msg__ping);
+      mapValues.insert("ping", msg__ping);
+    }
+    else
+    {
+      if (m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) {
+        ui->sbReqIdRecv->setValue(i64ReqIdRecv);
+      }
+      if     ("authorize" == strMsgType) 
+      { /* First message to authorize application */
+        QJsonObject msg__authorize;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "authorize", msg__authorize)
+          , "JSonObject 'authorize' doesn't exist", false);
+        QString msg__authorize__balance;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "balance"
+          , msg__authorize__balance)
+          , "JSonValue 'balance' doesn't exist", false);
+        QString msg__authorize__currency;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__authorize, "currency"
+          , msg__authorize__currency)
+          , "JSonValue 'currency' doesn't exist", false);
+        INFO_APP_WDG("balance:", msg__authorize__currency);
+        // Save start balance
+        if (m_strBalanceStart.isEmpty()) {
+          m_strBalanceStart = msg__authorize__balance;
+        }
+        m_BalanceUpdate(msg__authorize__balance);
+        ui->leCurrency->setText(msg__authorize__currency);
+        mapValues.insert("balance", msg__authorize__balance);
+        mapValues.insert("currency", msg__authorize__currency);
+        /* Update Status: AUTHORIZED (only first time) */
+        if (m_bFirstAuthorized) {
+          m_StatusUpdate(Status::kAUTHORIZED);
+          m_bFirstAuthorized = false;
+          RETURN_IFW_WDG(!m_SendSocketMessage("balance")
+            , "Error on send balance request", false);
+        }
+      }
+      else if ("balance" == strMsgType) 
+      { /* Monitoring balance changes */
+        QJsonObject msg__balance;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "balance", msg__balance)
+          , "JSonObject 'balance' doesn't exist", false);
+        QString msg__balance__balance;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__balance, "balance"
+          , msg__balance__balance)
+          , "JSonValue 'balance' doesn't exist", false);
+        INFO_APP_WDG("balance:", msg__balance__balance);
+        m_BalanceUpdate(msg__balance__balance);
+        mapValues.insert("balance", msg__balance__balance);
+      }
+      else if ("proposal" == strMsgType) 
+      { /* Proposal wait feedback */
+        QJsonObject msg__proposal;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__proposal)
+          , "JSonObject 'proposal' doesn't exist", false);
+        QString msg__proposal__id;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal, "id"
+          , msg__proposal__id)
+          , "JSonValue 'id' doesn't exist", false);
+        INFO_APP_WDG("id proposal:", msg__proposal__id);
+        mapValues.insert("id", msg__proposal__id);
+        /* update map Proposal with ProposalId */
+        RETURN_IFW_WDG(-1 == m_i64LastIdProposal
+          , "Cannot retrieve last inserted proposal", false);
+        RETURN_IFW_WDG(!m_mapProposalId2Info.contains(m_i64LastIdProposal)
+          , QString("Id Proposal %1 not present on database")
+            .arg(QString::number(m_i64LastIdProposal))
+          , false);
+        sProposalInfo info = m_mapProposalId2Info.value(m_i64LastIdProposal);
+        info.strProposalId = msg__proposal__id;
+        m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
+        /* Update proposal on database */
+        RETURN_IFW(!m_DbProposalUpdate(
+              {{"status", "proposal recv"},{"proposal_id",msg__proposal__id}}
+            , m_i64LastIdProposal)
+          , "Unable to update proposal on database", false);
+        /* Update Status: WAIT FOR CONFIRM */
+        m_StatusUpdate(Status::kWAITFORCON);
+      }
+      else if ("buy" == strMsgType)
+      { /* Buy wait feedback */
+        QJsonObject msg__buy;
+        RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buy)
+          , "JSonObject 'buy' doesn't exist", false);
+        QString msg__buy__contract_id;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "contract_id"
+          , msg__buy__contract_id)
+          , "JSonValue 'balance_after' doesn't exist", false);
+        QJsonObject msg__echo_req;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "echo_req", msg__echo_req)
+          , "JSonObject 'echo_req' doesn't exist", false);
+        QString msg__echo_req__buy;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__echo_req, strMsgType
+          , msg__echo_req__buy)
+          , "JSonValue 'buy' doesn't exist", false);
+        INFO_APP_WDG("contract_id:", msg__buy__contract_id);
+        mapValues.insert("contract_id", msg__buy__contract_id);
+        /* update map Proposal with ContractId */
+        sProposalInfo info;
+        int i64Id = m_i64IdProposalByInfo("proposal_id"
+          , msg__echo_req__buy, info);
+        RETURN_IFW_WDG(-1 == i64Id
+          , QString("Cannot retrieve from Proposal Info a proposal_id = %1")
+            .arg(msg__echo_req__buy)
+          , false);
+        info.strContractId = msg__buy__contract_id;
+        m_mapProposalId2Info.insert(i64Id, info);
+        /* Update proposal on database */
+        RETURN_IFW(!m_DbProposalUpdate(
+              {{"status"     , QString("%1 recv").arg(strMsgType)},
+               {"contract_id", msg__buy__contract_id       }}
+            , i64Id)
+          , "Unable to update proposal on database", false);
+        /* Send proposal_open_contract */
+        RETURN_IFW_WDG(!m_SendSocketMessage("proposal_open_contract"
+          , {{"contract_id",msg__buy__contract_id}})
+          , "Error on send proposal_open_contract request", false);
+        /* Update Status: AUTHORIZED */
         m_StatusUpdate(Status::kAUTHORIZED);
-        m_bFirstAuthorized = false;
-        RETURN_IFW_WDG(!m_SendSocketMessage("balance")
-          , "Error on send balance request", false);
       }
-    }
-    else if ("balance" == strMsgType) 
-    { /* Monitoring balance changes */
-      QJsonObject msg__balance;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "balance", msg__balance)
-        , "JSonObject 'balance' doesn't exist", false);
-      QString msg__balance__balance;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__balance, "balance"
-        , msg__balance__balance)
-        , "JSonValue 'balance' doesn't exist", false);
-      INFO_APP_WDG("balance:", msg__balance__balance);
-      m_BalanceUpdate(msg__balance__balance);
-      mapValues.insert("balance", msg__balance__balance);
-    }
-    else if ("proposal" == strMsgType) 
-    { /* Proposal wait feedback */
-      QJsonObject msg__proposal;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "proposal", msg__proposal)
-        , "JSonObject 'proposal' doesn't exist", false);
-      QString msg__proposal__id;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal, "id"
-        , msg__proposal__id)
-        , "JSonValue 'id' doesn't exist", false);
-      INFO_APP_WDG("id proposal:", msg__proposal__id);
-      mapValues.insert("id", msg__proposal__id);
-      /* update map Proposal with ProposalId */
-      RETURN_IFW_WDG(-1 == m_i64LastIdProposal
-        , "Cannot retrieve last inserted proposal", false);
-      RETURN_IFW_WDG(!m_mapProposalId2Info.contains(m_i64LastIdProposal)
-        , QString("Id Proposal %1 not present on database")
-          .arg(QString::number(m_i64LastIdProposal))
-        , false);
-      sProposalInfo info = m_mapProposalId2Info.value(m_i64LastIdProposal);
-      info.strProposalId = msg__proposal__id;
-      m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
-      /* Update proposal on database */
-      RETURN_IFW(!m_DbProposalUpdate(
-            {{"status", "proposal recv"},{"proposal_id",msg__proposal__id}}
-          , m_i64LastIdProposal)
-        , "Unable to update proposal on database", false);
-      /* Update Status: WAIT FOR CONFIRM */
-      m_StatusUpdate(Status::kWAITFORCON);
-    }
-    else if ("buy" == strMsgType)
-    { /* Buy wait feedback */
-      QJsonObject msg__buy;
-      RETURN_IFW_WDG(!m_JSonObject(msg, strMsgType, msg__buy)
-        , "JSonObject 'buy' doesn't exist", false);
-      QString msg__buy__contract_id;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__buy, "contract_id"
-        , msg__buy__contract_id)
-        , "JSonValue 'balance_after' doesn't exist", false);
-      QJsonObject msg__echo_req;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "echo_req", msg__echo_req)
-        , "JSonObject 'echo_req' doesn't exist", false);
-      QString msg__echo_req__buy;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__echo_req, strMsgType
-        , msg__echo_req__buy)
-        , "JSonValue 'buy' doesn't exist", false);
-      INFO_APP_WDG("contract_id:", msg__buy__contract_id);
-      mapValues.insert("contract_id", msg__buy__contract_id);
-      /* update map Proposal with ContractId */
-      sProposalInfo info;
-      int i64Id = m_i64IdProposalByInfo("proposal_id"
-        , msg__echo_req__buy, info);
-      RETURN_IFW_WDG(-1 == i64Id
-        , QString("Cannot retrieve from Proposal Info a proposal_id = %1")
-          .arg(msg__echo_req__buy)
-        , false);
-      info.strContractId = msg__buy__contract_id;
-      m_mapProposalId2Info.insert(i64Id, info);
-      /* Update proposal on database */
-      RETURN_IFW(!m_DbProposalUpdate(
-            {{"status"     , QString("%1 recv").arg(strMsgType)},
-             {"contract_id", msg__buy__contract_id       }}
-          , i64Id)
-        , "Unable to update proposal on database", false);
-      /* Send proposal_open_contract */
-      RETURN_IFW_WDG(!m_SendSocketMessage("proposal_open_contract"
-        , {{"contract_id",msg__buy__contract_id}})
-        , "Error on send proposal_open_contract request", false);
-      /* Update Status: AUTHORIZED */
-      m_StatusUpdate(Status::kAUTHORIZED);
-    }
-    else if ("proposal_open_contract" == strMsgType) 
-    { /* Proposal open contract response */
-      QJsonObject msg__proposal_open_contract;
-      RETURN_IFW_WDG(!m_JSonObject(msg, "proposal_open_contract"
-        , msg__proposal_open_contract)
-        , "JSonObject 'proposal_open_contract' doesn't exist", false);
-      QString msg__proposal_open_contract__contract_id;
-      RETURN_IFW_WDG(!m_JSonValueStrOrLong(msg__proposal_open_contract
-        , "contract_id"
-        , msg__proposal_open_contract__contract_id)
-        , "JSonValue 'contract_id' doesn't exist", false);
-      double msg__proposal_open_contract__is_expired;
-      RETURN_IFW_WDG(!m_JSonValueDouble(msg__proposal_open_contract
-        , "is_expired"
-        , msg__proposal_open_contract__is_expired)
-        , "JSonValue 'is_expired' doesn't exist", false);
-      QString msg__proposal_open_contract__status;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
-        , "status"
-        , msg__proposal_open_contract__status)
-        , "JSonValue 'status' doesn't exist", false);
-      double msg__proposal_open_contract__profit;
-      RETURN_IFW_WDG(!m_JSonValueDoubleOrStr(msg__proposal_open_contract
-        , "profit"
-        , msg__proposal_open_contract__profit)
-        , "JSonValue 'profit' doesn't exist", false);
-      QString msg__proposal_open_contract__profit_percentage;
-      RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
-        , "profit_percentage"
-        , msg__proposal_open_contract__profit_percentage)
-        , "JSonValue 'profit_percentage' doesn't exist", false);
-      int64_t msg__proposal_open_contract__date_expiry;
-      RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
-        , "date_expiry"
-        , msg__proposal_open_contract__date_expiry)
-        , "JSonValue 'date_expiry' doesn't exist", false);
-      int64_t msg__proposal_open_contract__current_spot_time = 0;
-      RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
-        , "current_spot_time"
-        , msg__proposal_open_contract__current_spot_time)
-        , "JSonValue 'current_spot_time' doesn't exist", false);
-      int64_t i64CountDown = msg__proposal_open_contract__date_expiry 
-        - msg__proposal_open_contract__current_spot_time;
-      mapValues.insert("contract_id", msg__proposal_open_contract__contract_id);
-      mapValues.insert("is_expired" 
-        , QString::number(msg__proposal_open_contract__is_expired));
-      mapValues.insert("status"     , msg__proposal_open_contract__status);
-      mapValues.insert("profit"     
-        , QString::number(msg__proposal_open_contract__profit));
-      mapValues.insert("profit_percentage"
-        , msg__proposal_open_contract__profit_percentage);
-      mapValues.insert("countdown", QString::number(i64CountDown));      
-      INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
-      sProposalInfo info;
-      int i64Id = m_i64IdProposalByInfo("contract_id"
-        , msg__proposal_open_contract__contract_id, info);
-      RETURN_IFW_WDG(-1 == i64Id
-        , QString("Cannot retrieve from Proposal Info a contract_id = %1")
-          .arg(msg__proposal_open_contract__contract_id)
-        , false);
-      info.strStatus = msg__proposal_open_contract__status;
-      info.i64CountDown = i64CountDown;
-      m_mapProposalId2Info.insert(i64Id, info);
-      bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
-      /* Update proposal on database */
-      RETURN_IFW(!m_DbProposalUpdate({
-              {"status", msg__proposal_open_contract__status}
-            , {"profit", QString::number(msg__proposal_open_contract__profit)}
-            , {"profit_percentage"
-              , msg__proposal_open_contract__profit_percentage}
-            , {"countdown", QString::number(i64CountDown)}}
-          , i64Id)
-        , "Unable to update proposal on database", false);
+      else if ("proposal_open_contract" == strMsgType) 
+      { /* Proposal open contract response */
+        QJsonObject msg__proposal_open_contract;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "proposal_open_contract"
+          , msg__proposal_open_contract)
+          , "JSonObject 'proposal_open_contract' doesn't exist", false);
+        QString msg__proposal_open_contract__contract_id;
+        RETURN_IFW_WDG(!m_JSonValueStrOrLong(msg__proposal_open_contract
+          , "contract_id"
+          , msg__proposal_open_contract__contract_id)
+          , "JSonValue 'contract_id' doesn't exist", false);
+        double msg__proposal_open_contract__is_expired;
+        RETURN_IFW_WDG(!m_JSonValueDouble(msg__proposal_open_contract
+          , "is_expired"
+          , msg__proposal_open_contract__is_expired)
+          , "JSonValue 'is_expired' doesn't exist", false);
+        QString msg__proposal_open_contract__status;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
+          , "status"
+          , msg__proposal_open_contract__status)
+          , "JSonValue 'status' doesn't exist", false);
+        double msg__proposal_open_contract__profit;
+        RETURN_IFW_WDG(!m_JSonValueDoubleOrStr(msg__proposal_open_contract
+          , "profit"
+          , msg__proposal_open_contract__profit)
+          , "JSonValue 'profit' doesn't exist", false);
+        QString msg__proposal_open_contract__profit_percentage;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__proposal_open_contract
+          , "profit_percentage"
+          , msg__proposal_open_contract__profit_percentage)
+          , "JSonValue 'profit_percentage' doesn't exist", false);
+        int64_t msg__proposal_open_contract__date_expiry;
+        RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
+          , "date_expiry"
+          , msg__proposal_open_contract__date_expiry)
+          , "JSonValue 'date_expiry' doesn't exist", false);
+        int64_t msg__proposal_open_contract__current_spot_time = 0;
+        RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
+          , "current_spot_time"
+          , msg__proposal_open_contract__current_spot_time)
+          , "JSonValue 'current_spot_time' doesn't exist", false);
+        int64_t i64CountDown = msg__proposal_open_contract__date_expiry 
+          - msg__proposal_open_contract__current_spot_time;
+        mapValues.insert("contract_id"
+          , msg__proposal_open_contract__contract_id);
+        mapValues.insert("is_expired" 
+          , QString::number(msg__proposal_open_contract__is_expired));
+        mapValues.insert("status"     , msg__proposal_open_contract__status);
+        mapValues.insert("profit"     
+          , QString::number(msg__proposal_open_contract__profit));
+        mapValues.insert("profit_percentage"
+          , msg__proposal_open_contract__profit_percentage);
+        mapValues.insert("countdown", QString::number(i64CountDown));      
+        INFO_APP_WDG("status proposal:", msg__proposal_open_contract__status);
+        sProposalInfo info;
+        int i64Id = m_i64IdProposalByInfo("contract_id"
+          , msg__proposal_open_contract__contract_id, info);
+        RETURN_IFW_WDG(-1 == i64Id
+          , QString("Cannot retrieve from Proposal Info a contract_id = %1")
+            .arg(msg__proposal_open_contract__contract_id)
+          , false);
+        info.strStatus = msg__proposal_open_contract__status;
+        info.i64CountDown = i64CountDown;
+        m_mapProposalId2Info.insert(i64Id, info);
+        bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
+        /* Update proposal on database */
+        RETURN_IFW(!m_DbProposalUpdate({
+                {"status", msg__proposal_open_contract__status}
+              , {"profit", QString::number(msg__proposal_open_contract__profit)}
+              , {"profit_percentage"
+                , msg__proposal_open_contract__profit_percentage}
+              , {"countdown", QString::number(i64CountDown)}}
+            , i64Id)
+          , "Unable to update proposal on database", false);
+      }
     }
   }
   QString strParameters = QString("%1: ").arg(strMsgType);
