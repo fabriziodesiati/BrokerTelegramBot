@@ -1126,8 +1126,9 @@ void CAppBrokerBinary::m_BalanceUpdate(const QString& strNewValue)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsg)
+bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
 {
+  QString strMsg = strMsgTot.split("\n").last();
   DEBUG_APP_WDG("Telegram message received", strMsg);
   RETURN_IFW_WDG(!m_DbHistoryInsert({
       {"operation" , "TBOT RECV"}
