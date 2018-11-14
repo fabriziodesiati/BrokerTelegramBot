@@ -29,9 +29,10 @@
  * ========================================================================== */
 #define APP_DEBUG                       1
 #define APP_MODEL_COL_DATE_TIME         2
-#define APP_MODEL_COL_STATUS            3
-#define APP_MODEL_COL_PROFIT            4
-#define APP_MODEL_COL_PROFIT_PERCENTAGE 5
+#define APP_MODEL_COL_STATUS_TBOT       3
+#define APP_MODEL_COL_STATUS            4
+#define APP_MODEL_COL_PROFIT            5
+#define APP_MODEL_COL_PROFIT_PERCENTAGE 6
 
 /* ==========================================================================
  * MODULE TAGGING
@@ -103,7 +104,17 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
   }
   else if (role == Qt::ForegroundRole)
   {
-    if       (idx.column() == APP_MODEL_COL_STATUS)
+    if      (idx.column() == APP_MODEL_COL_STATUS_TBOT)
+    {
+      QString strStatusTBot = data(idx, Qt::DisplayRole).toString();
+      static const QMap<QString,QColor> mapStatusTBot2Color = {
+          {"LOST OPTION",QColor(255,   0,   0, 255)} /* red */
+        , {"WIN OPTION" ,QColor(  0, 255,   0, 255)} /* green */
+      };
+      RETURN_IF(mapStatusTBot2Color.contains(strStatusTBot)
+        , mapStatusTBot2Color.value(strStatusTBot));
+    }
+    else if (idx.column() == APP_MODEL_COL_STATUS)
     {
       QString strStatus = data(idx, Qt::DisplayRole).toString();
       static const QMap<QString,QColor> mapStatus2Color = {

@@ -748,6 +748,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
           id integer PRIMARY KEY AUTOINCREMENT \
         , session_id NOT NULL \
         , date_time text NOT NULL \
+        , status_tbot text \
         , status text \
         , profit real \
         , profit_percentage text \
@@ -834,6 +835,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     << true  //id
     << true  //session_id
     << false //date_time
+    << false //status_tbot
     << false //status
     << false //profit
     << false //profit_percentage
@@ -1128,7 +1130,7 @@ void CAppBrokerBinary::m_BalanceUpdate(const QString& strNewValue)
  * ========================================================================== */
 bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
 {
-  QString strMsg = strMsgTot.split("\n").last();
+  QString strMsg = strMsgTot.split("\n").last().toUpper();
   DEBUG_APP_WDG("Telegram message received", strMsg);
   RETURN_IFW_WDG(!m_DbHistoryInsert({
       {"operation" , "TBOT RECV"}
@@ -1139,6 +1141,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
   //USD CHF CALL 5 MIN WAIT CONFIRM
   //GO
   //NO
+  //WIN OPTION
+  //LOST OPTION
   if      (strMsg.endsWith("WAIT CONFIRM")) {
     QStringList list = strMsg.split(" ");
     // Early return without CATCH_ABORT (return true)
@@ -1208,6 +1212,15 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     /* reset last proposal: all next queries pass by map */
     m_i64LastIdProposal = -1;
     m_StatusUpdate(Status::kAUTHORIZED);
+  }
+  else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
+    // Update status_tbot on database
+    RETURN_IF(m_listProposalsExpired.empty(), true);
+    int64_t i64IdProposal = m_listProposalsExpired.at(0);
+    m_listProposalsExpired.removeFirst();
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
+      , "Unable to update proposal on database", false);
   }
   return true;
 }
@@ -1582,10 +1595,15 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Proposal Info a contract_id = %1")
             .arg(msg__proposal_open_contract__contract_id)
           , false);
+        if (QString::number(msg__proposal_open_contract__is_expired).toInt() &&
+            !m_listProposalsExpired.contains(i64Id))
+        {
+          m_listProposalsExpired.append(i64Id);
+        }
+        bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
         info.strStatus = msg__proposal_open_contract__status;
         info.i64CountDown = i64CountDown;
-        m_mapProposalId2Info.insert(i64Id, info);
-        bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
+        m_mapProposalId2Info.insert(i64Id, info);        
         /* Update proposal on database */
         RETURN_IFW(!m_DbProposalUpdate({
                 {"status", msg__proposal_open_contract__status}
