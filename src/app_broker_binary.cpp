@@ -60,7 +60,12 @@
  */
 #define WARNING_APP_WDG(strFunc,strMsg)\
   do { \
-  ui->lblInfo->setText(QString("[WARNING] %1: %2").arg(strFunc).arg(strMsg)); \
+  QString strFullMsg = QString("[WARNING] %1 : %2").arg(strFunc).arg(strMsg); \
+  ui->lblError->setText(strFullMsg); \
+  ui->lblError->setStyleSheet("QLabel { background-color : yellow; }"); \
+  m_DbHistoryInsert({ \
+      {"operation" , "APPL WARN"} \
+    , {"parameters", strFullMsg}}); \
   WARNING_APP(strFunc,strMsg); \
   } while (false)
 
@@ -69,7 +74,12 @@
  */
 #define CRITICAL_APP_WDG(strFunc,strMsg)\
   do { \
-  ui->lblInfo->setText(QString("[CRITICAL] %1: %2").arg(strFunc).arg(strMsg)); \
+  QString strFullMsg = QString("[CRITICAL] %1 : %2").arg(strFunc).arg(strMsg); \
+  ui->lblError->setText(strFullMsg); \
+  ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
+  m_DbHistoryInsert({ \
+      {"operation" , "APPL CRIT"} \
+    , {"parameters", strFullMsg}}); \
   CRITICAL_APP(strFunc,strMsg); \
   } while (false)
 
@@ -120,11 +130,6 @@
     QString strFunc = QString("%1 @%2").arg(THIS).arg(__LINE__); \
     QString strMsg = QString("%1 (C=%2, ret=%3)").arg(#msg).arg(#cond).arg(#c);\
     CRITICAL_APP_WDG(strFunc,strMsg); \
-    ui->lblError->setText(QString("%1 : %2").arg(strFunc).arg(strMsg)); \
-    ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
-    m_DbHistoryInsert({ \
-        {"operation" , "APPL ERRO"} \
-      , {"parameters", ui->lblError->text()}}); \
     return c; \
   }} while (false)
 
@@ -739,14 +744,14 @@ void CAppBrokerBinary::m_LookApply(const QString& strTheme)
 bool CAppBrokerBinary::m_DbCreateTables()
 {
   /* Create Table sessions */
-  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS sessions ( \
           id integer PRIMARY KEY AUTOINCREMENT \
         , date_time text NOT NULL UNIQUE)")
     , "Unable to create sessions table"
     , false);
   /* Create Table history */
-  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS history ( \
           id integer PRIMARY KEY AUTOINCREMENT \
         , session_id NOT NULL \
@@ -760,7 +765,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
     , "Unable to create history table"
     , false);
   /* Create Table proposals */
-  RETURN_IFW_WDG(!CAppDatabase::GetInstance().execQuery(
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS proposals ( \
           id integer PRIMARY KEY AUTOINCREMENT \
         , session_id NOT NULL \
@@ -906,7 +911,7 @@ int64_t CAppBrokerBinary::m_DbSessionInsert()
   QString strCurrentDateTime = CurrentDateTime();
   m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
     "INSERT INTO sessions (date_time) VALUES ('%1')").arg(strCurrentDateTime));
-  RETURN_IFW_WDG(-1 == m_i64SessionId
+  RETURN_IFC_WDG(-1 == m_i64SessionId
     , "Unable to create a valid session id on database", m_i64SessionId);
   ui->leSession->setText(QString("%1: %2")
      .arg(m_i64SessionId, 3, 10, QChar('0'))
@@ -939,11 +944,11 @@ int64_t CAppBrokerBinary::m_DbHistoryInsert(
       .arg(ui->leCurrency->text())
       .arg(mapValues.value("parameters"))
       .arg(mapValues.value("details")));
-  RETURN_IFW_WDG(-1 == i64Id
+  RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a history entry on database", i64Id);
   // Reload history if session is selected (or ALL)
   if (-1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected){
-    RETURN_IFW_WDG(!m_DbHistoryRelaod(true)
+    RETURN_IFC_WDG(!m_DbHistoryRelaod(true)
       , "Unable to reload history from database", i64Id);
   }
   return i64Id;
@@ -973,10 +978,10 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
       .arg(mapValues.value("symbolB"))
       .arg(mapValues.value("amount"))
       .arg(mapValues.value("currency")));
-  RETURN_IFW_WDG(-1 == i64Id
+  RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a proposal entry on database", i64Id);
   // Reload proposals
-  RETURN_IFW_WDG(!m_DbProposalsRelaod(true)
+  RETURN_IFC_WDG(!m_DbProposalsRelaod(true)
     , "Unable to reload proposals from database", i64Id);
   return i64Id;
 }
@@ -1024,7 +1029,7 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   const QString strQuery = "SELECT DISTINCT id, date_time FROM sessions \
                             ORDER BY date_time DESC";
   QSqlQuery qry;
-  RETURN_IFW_WDG(!qry.exec(strQuery)
+  RETURN_IFC_WDG(!qry.exec(strQuery)
     , QString("Unable to execute query [%1] E=%2")
       .arg(strQuery).arg(qry.lastError().text()), false);
   /* Add entry for ALL */
@@ -1149,7 +1154,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
 {
   QString strMsg = strMsgTot.split("\n").last().toUpper();
   DEBUG_APP_WDG("Telegram message received", strMsg);
-  RETURN_IFW_WDG(!m_DbHistoryInsert({
+  RETURN_IFC_WDG(!m_DbHistoryInsert({
       {"operation" , "TBOT RECV"}
     , {"parameters", strMsg}
     , {"details"   , strMsg} })
@@ -1236,7 +1241,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     int64_t i64IdProposal = m_listProposalsExpired.at(0);
     m_listProposalsExpired.removeFirst();
     /* Update proposal on database */
-    RETURN_IFW(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
+    RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
       , "Unable to update proposal on database", false);
   }
   return true;
@@ -1359,7 +1364,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(ui->sbReqIdSent->value());
   }
   else {
-    RETURN_IFW_WDG(true, QString("Message type %1 is unrecognized").arg(strMsgType)
+    RETURN_IFC_WDG(true, QString("Message type %1 is unrecognized").arg(strMsgType)
       , false);    
   }
   // Send
@@ -1370,7 +1375,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       strParameters.append(QString("%1=%2, ")
         .arg(str).arg(mapValues.value(str)));
     }
-    RETURN_IFW_WDG(bInsertHistory && !m_DbHistoryInsert({
+    RETURN_IFC_WDG(bInsertHistory && !m_DbHistoryInsert({
         {"operation" , "SOCK SEND"}
       , {"parameters", strParameters}
       , {"details"   , strMsg} })
@@ -1394,8 +1399,8 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   DEBUG_APP_WDG("Recv message socket", strMsg);
   // Parsing JSON
   QJsonDocument doc = QJsonDocument::fromJson(strMsg.toUtf8());
-  RETURN_IFW_WDG(doc.isNull(), "JsonDocument is null", false);
-  RETURN_IFW_WDG(!doc.isObject(), "JsonObject is null", false);
+  RETURN_IFC_WDG(doc.isNull(), "JsonDocument is null", false);
+  RETURN_IFC_WDG(!doc.isObject(), "JsonObject is null", false);
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   bool bInsertHistory = true;

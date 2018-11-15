@@ -133,4 +133,16 @@
     return c; \
   }} while (false)
 
+/**
+ * Use this macro for early-exit on input parameter validation.
+ */
+#define RETURN_IFC(cond,msg,c)\
+  do { \
+  if (cond) { \
+    QString strFunc = QString("%1 @%2").arg(THIS).arg(__LINE__); \
+    QString strMsg = QString("%1 (C=%2, ret=%3)").arg(#msg).arg(#cond).arg(#c);\
+    CRITICAL_APP(strFunc,strMsg); \
+    return c; \
+  }} while (false)
+
 #endif  // APP_PRIV_H
