@@ -89,8 +89,8 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
   {
     if (idx.column() == APP_MODEL_COL_DATE_TIME)
     {
-      QModelIndex idxOperation = createIndex(idx.row(), APP_MODEL_COL_STATUS);
-      QString strStatus = data(idxOperation, Qt::DisplayRole).toString();
+      QModelIndex idxStatus = createIndex(idx.row(), APP_MODEL_COL_STATUS);
+      QString strStatus = data(idxStatus, Qt::DisplayRole).toString();
       static const QMap<QString,QString> mapStatus2Color = {
           {"open",":/icons/resources/circle_yellow.png"}
         , {"sold",":/icons/resources/circle_yellow.png"}
@@ -107,11 +107,20 @@ QVariant CAppModelProposals::data(const QModelIndex &idx, int role) const
     if      (idx.column() == APP_MODEL_COL_STATUS_TBOT)
     {
       QString strStatusTBot = data(idx, Qt::DisplayRole).toString();
+      QModelIndex idxStatus = createIndex(idx.row(), APP_MODEL_COL_STATUS);
+      QString strStatus = data(idxStatus, Qt::DisplayRole).toString();
+      static const QMap<QString,QString> mapStatusTBot2Status = {
+          {"LOST OPTION","lost"}
+        , {"WIN OPTION" ,"won" }
+      };
       static const QMap<QString,QColor> mapStatusTBot2Color = {
           {"LOST OPTION",QColor(255,   0,   0, 255)} /* red */
         , {"WIN OPTION" ,QColor(  0, 255,   0, 255)} /* green */
       };
-      RETURN_IF(mapStatusTBot2Color.contains(strStatusTBot)
+      RETURN_IF(
+          mapStatusTBot2Status.contains(strStatusTBot) &&
+          mapStatusTBot2Color.contains(strStatusTBot) &&
+          mapStatusTBot2Status.value(strStatusTBot) != strStatus
         , mapStatusTBot2Color.value(strStatusTBot));
     }
     else if (idx.column() == APP_MODEL_COL_STATUS)
