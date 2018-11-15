@@ -62,7 +62,7 @@
   do { \
   QString strFullMsg = QString("[WARNING] %1 : %2").arg(strFunc).arg(strMsg); \
   ui->lblError->setText(strFullMsg); \
-  ui->lblError->setStyleSheet("QLabel { background-color : yellow; }"); \
+  ui->lblError->setStyleSheet("QLabel { color : yellow; }"); \
   m_DbHistoryInsert({ \
       {"operation" , "APPL WARN"} \
     , {"parameters", strFullMsg}}); \
@@ -76,7 +76,7 @@
   do { \
   QString strFullMsg = QString("[CRITICAL] %1 : %2").arg(strFunc).arg(strMsg); \
   ui->lblError->setText(strFullMsg); \
-  ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
+  ui->lblError->setStyleSheet("QLabel { color : red; }"); \
   m_DbHistoryInsert({ \
       {"operation" , "APPL CRIT"} \
     , {"parameters", strFullMsg}}); \
