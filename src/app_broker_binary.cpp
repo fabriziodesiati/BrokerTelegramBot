@@ -69,7 +69,7 @@
  */
 #define CRITICAL_APP_WDG(strFunc,strMsg)\
   do { \
-  ui->lblInfo->setText(QString("[CRITIAL] %1: %2").arg(strFunc).arg(strMsg)); \
+  ui->lblInfo->setText(QString("[CRITICAL] %1: %2").arg(strFunc).arg(strMsg)); \
   CRITICAL_APP(strFunc,strMsg); \
   } while (false)
 
@@ -79,9 +79,9 @@
 #define CATCH_BUG_WDG(cond,msg)\
   do { \
   if (cond) { \
-    ui->lblInfo->setText(QString("[CATCH_BUG] %1 @%2: %3 (C=%4)") \
+    ui->lblError->setText(QString("[CATCH_BUG] %1 @%2: %3 (C=%4)") \
       .arg(THIS).arg(__LINE__).arg(#msg).arg(#cond)); \
-    ui->lblInfo->setStyleSheet("QLabel { background-color : red; }"); \
+    ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
     QEventLoop loop; loop.processEvents(); \
     CATCH_BUG(cond,msg); \
   }} while (false)
@@ -92,9 +92,9 @@
 #define CATCH_ABORT_WDG(cond,msg)\
   do { \
   if (cond) { \
-    ui->lblInfo->setText(QString("[CATCH_ABORT] %1 @%2: %3 (C=%4)") \
+    ui->lblError->setText(QString("[CATCH_ABORT] %1 @%2: %3 (C=%4)") \
       .arg(THIS).arg(__LINE__).arg(#msg).arg(#cond)); \
-    ui->lblInfo->setStyleSheet("QLabel { background-color : red; }"); \
+    ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
     QEventLoop loop; loop.processEvents(); \
     CATCH_ABORT(cond,msg); \
   }} while (false)
@@ -108,6 +108,23 @@
     QString strFunc = QString("%1 @%2").arg(THIS).arg(__LINE__); \
     QString strMsg = QString("%1 (C=%2, ret=%3)").arg(#msg).arg(#cond).arg(#c);\
     WARNING_APP_WDG(strFunc,strMsg); \
+    return c; \
+  }} while (false)
+
+/**
+ * Use this macro for early-exit on input parameter validation on wdg.
+ */
+#define RETURN_IFC_WDG(cond,msg,c)\
+  do { \
+  if (cond) { \
+    QString strFunc = QString("%1 @%2").arg(THIS).arg(__LINE__); \
+    QString strMsg = QString("%1 (C=%2, ret=%3)").arg(#msg).arg(#cond).arg(#c);\
+    CRITICAL_APP_WDG(strFunc,strMsg); \
+    ui->lblError->setText(QString("%1 : %2").arg(strFunc).arg(strMsg)); \
+    ui->lblError->setStyleSheet("QLabel { background-color : red; }"); \
+    m_DbHistoryInsert({ \
+        {"operation" , "APPL ERRO"} \
+      , {"parameters", ui->lblError->text()}}); \
     return c; \
   }} while (false)
 
@@ -362,8 +379,8 @@ void CAppBrokerBinary::slotOnSocketDisconnected()
 void CAppBrokerBinary::slotOnMessageSocketReceived(const QString& strMsg)
 {
   // decode response
-  CATCH_ABORT_WDG(!m_RecvSocketMessage(strMsg)
-    , "Error on decode received socket message");
+  RETURN_IFC_WDG(!m_RecvSocketMessage(strMsg)
+    , "Error on decode received socket message", );
 }
 
 /* ==========================================================================
@@ -377,8 +394,8 @@ void CAppBrokerBinary::slotOnMessageSocketReceived(const QString& strMsg)
 void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 {
   // decode telegram message
-  CATCH_ABORT_WDG(!m_RcvTelegramMessage(message.string)
-    , "Error on decode received telegram message"); 
+  RETURN_IFC_WDG(!m_RcvTelegramMessage(message.string)
+    , "Error on decode received telegram message", ); 
 }
 
 /* ==========================================================================
@@ -399,7 +416,8 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
     CATCH_BUG_WDG(list.count() < 2, "ComboBox for sessions is malformed");
     m_i64SessionIdSelected = strSelectedSession.split(":").at(0).toLongLong();
   }
-  CATCH_ABORT_WDG(!m_DbHistoryRelaod(true), "Cannot reload history from database");
+  CATCH_ABORT_WDG(!m_DbHistoryRelaod(true)
+    , "Cannot reload history from database");
 }
 
 /* ==========================================================================
@@ -428,9 +446,8 @@ void CAppBrokerBinary::slotOnLookApply(const QString& strLook)
 void CAppBrokerBinary::slotOnBalanceClicked()
 {
   // authorize
-  CATCH_ABORT_WDG(
-      !m_SendSocketMessage("authorize", {{"authorize", m_strToken}})
-    , "Error on send authorize request");
+  RETURN_IFC_WDG(!m_SendSocketMessage("authorize", {{"authorize", m_strToken}})
+    , "Error on send authorize request", );
 }
 
 /* ==========================================================================
