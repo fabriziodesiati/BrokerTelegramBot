@@ -780,6 +780,8 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , symbolB text NOT NULL \
         , amount text NOT NULL \
         , currency text NOT NULL \
+        , date_start text \
+        , date_expiry text \
         , proposal_id text \
         , contract_id text \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -867,6 +869,8 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     << false //symbolB
     << false //amount
     << false //currency
+    << false //date_start
+    << false //date_expiry
     << true  //proposal_id
     << true; //contract_id;
   if (bHideColumns)
@@ -1587,11 +1591,22 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , "profit_percentage"
           , msg__proposal_open_contract__profit_percentage)
           , "JSonValue 'profit_percentage' doesn't exist", false);
+        int64_t msg__proposal_open_contract__date_start;
+        RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
+          , "date_start"
+          , msg__proposal_open_contract__date_start)
+          , "JSonValue 'date_start' doesn't exist", false);
+        QDateTime dtStart = QDateTime::fromSecsSinceEpoch(
+          msg__proposal_open_contract__date_start);
+        QString strDateStart = dtStart.toString("yyyy-MM-dd hh:mm:ss");
         int64_t msg__proposal_open_contract__date_expiry;
         RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
           , "date_expiry"
           , msg__proposal_open_contract__date_expiry)
           , "JSonValue 'date_expiry' doesn't exist", false);
+        QDateTime dtExpiry = QDateTime::fromSecsSinceEpoch(
+          msg__proposal_open_contract__date_expiry);
+        QString strDateExpiry = dtExpiry.toString("yyyy-MM-dd hh:mm:ss");
         int64_t msg__proposal_open_contract__current_spot_time = 0;
         RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
           , "current_spot_time"
@@ -1617,9 +1632,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Proposal Info a contract_id = %1")
             .arg(msg__proposal_open_contract__contract_id)
           , false);
-        if (QString::number(msg__proposal_open_contract__is_expired).toInt() &&
-            !m_listProposalsExpired.contains(i64Id))
-        {
+        if (!m_listProposalsExpired.contains(i64Id)) {
           m_listProposalsExpired.append(i64Id);
         }
         bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
@@ -1632,7 +1645,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
               , {"profit", QString::number(msg__proposal_open_contract__profit)}
               , {"profit_percentage"
                 , msg__proposal_open_contract__profit_percentage}
-              , {"countdown", QString::number(i64CountDown)}}
+              , {"countdown", QString::number(i64CountDown)}
+              , {"date_start", strDateStart}
+              , {"date_expiry", strDateExpiry}}
             , i64Id)
           , "Unable to update proposal on database", false);
       }
