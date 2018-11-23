@@ -4,8 +4,6 @@ echo  param1 is BUIDIR (default C:\Projects\PERSONAL\BUILDS)
 echo  param2 is RELDIR (default C:\Projects\PERSONAL\RELEASE\BrokerTelegramBot\Release)
 echo  param3 is BUILDTYPE [Release,Debug,RelWithDebInfo] (default Release)
 
-set "DEPLOY_EXE=BrokerTelegramBot"
-
 if /I "%1" equ "" ( 
   set BUIDIR=C:\Projects\PERSONAL\BUILDS
 ) else ( 
@@ -37,9 +35,9 @@ if /I "%4" neq "" (
   
   echo --- COPY Microsoft Visual C++ 2015 Redistributable x64:
   echo --- ...copy msvcp140%DBG%.dll
-  copy %SYSTEM32DIR%\msvcp140%DBG%.dll                                        %RELDIR%\.
+  copy %SYSTEM32DIR%\msvcp140%DBG%.dll              %RELDIR%\.
   echo --- ...copy vcruntime140%DBG%.dll
-  copy %SYSTEM32DIR%\vcruntime140%DBG%.dll                                    %RELDIR%\.
+  copy %SYSTEM32DIR%\vcruntime140%DBG%.dll          %RELDIR%\.
 )
 
 echo BUIDIR=%BUIDIR%
@@ -49,18 +47,19 @@ echo RELDIR=%RELDIR%
 echo --- COPY EXECUTABLES:
 set PREV_DIR=%cd%
 cd %BUIDIR%
-for %%G in (%DEPLOY_EXE%) do (
-  echo --- ...copy %%G.exe
-  copy %BUIDIR%\%%G\%TYPE%\%%G.exe %RELDIR%\. 
-  if exist "C:\Program Files\%%G\etc" (
-    echo --- ...etc
-    xcopy "C:\Program Files\%%G\etc"                                          %RELDIR%\etc /s /i /y
-  )
-  if exist "C:\Program Files\%%G\db" (
-    echo --- ...db
-    xcopy "C:\Program Files\%%G\db"                                           %RELDIR%\db /s /i /y
-  )
-  
+echo --- ...copy BrokerTelegramBot.exe
+copy %BUIDIR%\BrokerTelegramBot\%TYPE%\%%G.exe      %RELDIR%\. 
+if exist "C:\Program Files\BrokerTelegramBot\etc" (
+  echo --- ...etc
+  xcopy "C:\Program Files\BrokerTelegramBot\etc"    %RELDIR%\etc /s /i /y
+)
+if exist "C:\Program Files\BrokerTelegramBot\db" (
+  echo --- ...db
+  xcopy "C:\Program Files\BrokerTelegramBot\db"     %RELDIR%\db /s /i /y
+)
+if exist "C:\Program Files\BrokerTelegramBot\python" (
+  echo --- ...python
+  xcopy "C:\Program Files\BrokerTelegramBot\python" %RELDIR%\python /s /i /y
 )
 cd  %PREV_DIR%
 
