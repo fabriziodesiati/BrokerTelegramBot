@@ -1,0 +1,2 @@
+echo OFF
+python forwarder.py 517469 db10ed08e544033eda6fe4cd9ba2c889 1269847629 1124412374
