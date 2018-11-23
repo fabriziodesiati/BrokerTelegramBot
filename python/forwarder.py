@@ -19,8 +19,8 @@ channel_id_src=1269847629
 if len(sys.argv) > 3:
   channel_id_src=int(sys.argv[3])
 # 4 - channel_id_dst
-#channel_signals: 
-#channel_signals_all:
+#channel_signals: 1241024177
+#channel_signals_all: 1218158012
 #test_fds: 1124412374
 channel_id_dst=1124412374
 if len(sys.argv) > 4:
