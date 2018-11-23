@@ -125,20 +125,36 @@ int main(int argc,char* argv[])
   }
   CATCH_ABORT(strAppIdBroker.isEmpty(), "Required --app_id-broker <APP_ID>");
   CATCH_ABORT(strTokenBroker.isEmpty(), "Required --token-broker <TOKEN>");
-  CATCH_ABORT(strTokenBot.isEmpty()   , "Required --token-bot <TOKEN>");
-  CATCH_ABORT(bPythonRun && strApiId.isEmpty()
-    , "Required --api_id <API_ID>");
-  CATCH_ABORT(bPythonRun && strApiHash.isEmpty()
-    , "Required --api_hash <API_HASH>");
-  CATCH_ABORT(bPythonRun && strChIdSrc.isEmpty()
-    , "Required --ch_id_src <CHANNEL_ID_SOURCE>");
-  CATCH_ABORT(bPythonRun && strChIdDst.isEmpty()
-    , "Required --ch_id_dst <CHANNEL_ID_DESTINATION>");
+  CATCH_ABORT(strTokenBot.isEmpty()   , "Required --token-bot <TOKEN>");  
 
   /* Create Application */
   // Set important Qt flags
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication app(argc, argv);
+
+  /* Start telegram forwarder */
+  QProcess pyProcess;
+  if (bPythonRun) {
+    CATCH_ABORT(strApiId.isEmpty()  , "Required --api_id <API_ID>");
+    CATCH_ABORT(strApiHash.isEmpty(), "Required --api_hash <API_HASH>");
+    CATCH_ABORT(strChIdSrc.isEmpty(), "Required --ch_id_src <CHANNEL_ID_SRC>");
+    CATCH_ABORT(strChIdDst.isEmpty(), "Required --ch_id_dst <CHANNEL_ID_DST>");
+    QString program = "python";
+    QStringList arguments = QStringList()
+      << "./python/forwarder.py" 
+      << strApiId << strApiHash << strChIdSrc << strChIdDst;
+#if 1
+    pyProcess.setProcessChannelMode(QProcess::ForwardedChannels);
+    pyProcess.start(program, arguments);
+#else
+    QString strCommand = program;
+    for (auto strArg: arguments) {
+      strCommand.append(QString(" %1").arg(strArg));
+      strCommand.append("&");
+    }
+    system(qPrintable(strCommand));
+#endif
+  }
 
   /* Create an instance of BrokerBinary */
   CAppBrokerBinary* pAppBrokerBinary = new(std::nothrow) CAppBrokerBinary(

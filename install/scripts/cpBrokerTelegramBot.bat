@@ -35,9 +35,9 @@ if /I "%4" neq "" (
   
   echo --- COPY Microsoft Visual C++ 2015 Redistributable x64:
   echo --- ...copy msvcp140%DBG%.dll
-  copy %SYSTEM32DIR%\msvcp140%DBG%.dll              %RELDIR%\.
+  copy %SYSTEM32DIR%\msvcp140%DBG%.dll                        %RELDIR%\.
   echo --- ...copy vcruntime140%DBG%.dll
-  copy %SYSTEM32DIR%\vcruntime140%DBG%.dll          %RELDIR%\.
+  copy %SYSTEM32DIR%\vcruntime140%DBG%.dll                    %RELDIR%\.
 )
 
 echo BUIDIR=%BUIDIR%
@@ -48,18 +48,18 @@ echo --- COPY EXECUTABLES:
 set PREV_DIR=%cd%
 cd %BUIDIR%
 echo --- ...copy BrokerTelegramBot.exe
-copy %BUIDIR%\BrokerTelegramBot\%TYPE%\%%G.exe      %RELDIR%\. 
+copy %BUIDIR%\BrokerTelegramBot\%TYPE%\BrokerTelegramBot.exe  %RELDIR%\. 
 if exist "C:\Program Files\BrokerTelegramBot\etc" (
   echo --- ...etc
-  xcopy "C:\Program Files\BrokerTelegramBot\etc"    %RELDIR%\etc /s /i /y
+  xcopy "C:\Program Files\BrokerTelegramBot\etc"              %RELDIR%\etc /s /i /y
 )
 if exist "C:\Program Files\BrokerTelegramBot\db" (
   echo --- ...db
-  xcopy "C:\Program Files\BrokerTelegramBot\db"     %RELDIR%\db /s /i /y
+  xcopy "C:\Program Files\BrokerTelegramBot\db"               %RELDIR%\db /s /i /y
 )
 if exist "C:\Program Files\BrokerTelegramBot\python" (
   echo --- ...python
-  xcopy "C:\Program Files\BrokerTelegramBot\python" %RELDIR%\python /s /i /y
+  xcopy "C:\Program Files\BrokerTelegramBot\python"           %RELDIR%\python /s /i /y
 )
 cd  %PREV_DIR%
 
