@@ -1,0 +1,8 @@
+Steps to Use Python and Telegram: 
+- install python 3 (https://www.python.org/ftp/python/3.7.1/python-3.7.1-amd64.exe) on "C:\Python37" and check adding environment variable PATH
+- install Telethon (from console):
+  > pip3 install telethon
+- get api_id and api_hash for Telegram API:
+  - Sign up for Telegram using any application
+  - Log in to your Telegram core: https://my.telegram.org
+  - Go to ‘API development tools’ and fill out the form
