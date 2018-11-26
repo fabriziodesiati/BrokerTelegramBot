@@ -36,7 +36,7 @@ client.start()
 
 #print(client.get_me().stringify())
 
-@client.on(events.NewMessage(pattern='(?i).*CONFIRM$|.*GO$|.*NO$|.*STATUS$'))
+@client.on(events.NewMessage(pattern='(?i).*CONFIRM$|.*GO$|.*NO$|.*OPTION$'))
 async def handler(event):
   if event.to_id.channel_id == channel_id_src:    
     print('PY ' + str(datetime.datetime.now().time()) + ': ' + str(event.message.message))
