@@ -107,7 +107,7 @@ bool CAppDatabase::connect(
     for(auto str: list) {
       strMsg.append(QString("  %1\n").arg(str));
     }
-    DEBUG_APP("Connect databse", strMsg);
+    DEBUG_APP("Connect database ...", strMsg);
   }
 #endif
   // check driver availability

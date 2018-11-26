@@ -137,7 +137,7 @@ private:
   
   int64_t m_i64LastIdProposal;
   QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
-  QList<int64_t> m_listProposalsExpired;
+  QList<int64_t> m_listProposalsOpenOrExpired;
 
   void m_StatusUpdate(Status);
   void m_LookApply(const QString&);

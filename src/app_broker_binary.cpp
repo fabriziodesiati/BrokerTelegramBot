@@ -1164,7 +1164,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     , {"details"   , strMsg} })
     , "Unable to insert history record on database", false);
   //GBP USD CALL 5 MIN WAIT CONFIRM
-  //USD CHF CALL 5 MIN WAIT CONFIRM
+  //USD CHF PUT 5 MIN WAIT CONFIRM
   //GO
   //NO
   //WIN OPTION
@@ -1241,9 +1241,18 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
   }
   else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
     // Update status_tbot on database
-    RETURN_IF(m_listProposalsExpired.empty(), true);
-    int64_t i64IdProposal = m_listProposalsExpired.at(0);
-    m_listProposalsExpired.removeFirst();
+#if APP_DEBUG == 1
+    {
+      QString strDebug;
+      for(auto id: m_listProposalsOpenOrExpired) {
+        strDebug.append(QString("%1 ").arg(QString::number(id)));
+      }
+      DEBUG_APP("m_listProposalsOpenOrExpired", strDebug);
+    }
+#endif
+    RETURN_IF(m_listProposalsOpenOrExpired.empty(), true);
+    int64_t i64IdProposal = m_listProposalsOpenOrExpired.at(0);
+    m_listProposalsOpenOrExpired.removeFirst();
     /* Update proposal on database */
     RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
       , "Unable to update proposal on database", false);
@@ -1632,8 +1641,8 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Proposal Info a contract_id = %1")
             .arg(msg__proposal_open_contract__contract_id)
           , false);
-        if (!m_listProposalsExpired.contains(i64Id)) {
-          m_listProposalsExpired.append(i64Id);
+        if (!m_listProposalsOpenOrExpired.contains(i64Id)) {
+          m_listProposalsOpenOrExpired.append(i64Id);
         }
         bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
         info.strStatus = msg__proposal_open_contract__status;
