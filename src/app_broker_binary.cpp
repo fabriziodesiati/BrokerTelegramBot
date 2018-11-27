@@ -782,6 +782,8 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , currency text NOT NULL \
         , date_start text \
         , date_expiry text \
+        , error text \
+        , req_id int \
         , proposal_id text \
         , contract_id text \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -871,6 +873,8 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     << false //currency
     << false //date_start
     << false //date_expiry
+    << false //error
+    << true  //req_id
     << true  //proposal_id
     << true; //contract_id;
   if (bHideColumns)
@@ -972,8 +976,8 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO proposals (\
         session_id, date_time, status, contract_type, symbolA, symbolB, amount\
-        , currency) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8')")
+        , currency, req_id) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8',%9)")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("status"))
@@ -981,7 +985,8 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
       .arg(mapValues.value("symbolA"))
       .arg(mapValues.value("symbolB"))
       .arg(mapValues.value("amount"))
-      .arg(mapValues.value("currency")));
+      .arg(mapValues.value("currency"))
+      .arg(mapValues.value("req_id")));
   RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a proposal entry on database", i64Id);
   // Reload proposals
@@ -1212,12 +1217,12 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
       .strProposalId;
     QString strPrice = m_mapProposalId2Info.value(m_i64LastIdProposal)
       .strPrice;
+    m_StatusUpdate(Status::kAUTHORIZED);
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, m_i64LastIdProposal)
       , "Unable to update proposal on database", false);
     /* reset last proposal: all next queries pass by map */
-    m_i64LastIdProposal = -1;
-    m_StatusUpdate(Status::kAUTHORIZED);
+    m_i64LastIdProposal = -1;    
     // buy
     RETURN_IFW_WDG(!m_SendSocketMessage("buy"
         , { 
@@ -1235,24 +1240,24 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate({{"status", "NO"}}, m_i64LastIdProposal)
       , "Unable to update proposal on database", false);
-    /* reset last proposal: all next queries pass by map */
-    m_i64LastIdProposal = -1;
     m_StatusUpdate(Status::kAUTHORIZED);
+    /* reset last proposal: all next queries pass by map */
+    m_i64LastIdProposal = -1;    
   }
   else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
     // Update status_tbot on database
 #if APP_DEBUG == 1
     {
       QString strDebug;
-      for(auto id: m_listProposalsOpenOrExpired) {
+      for(auto id: m_listSentProposals) {
         strDebug.append(QString("%1 ").arg(QString::number(id)));
       }
       DEBUG_APP("m_listProposalsOpenOrExpired", strDebug);
     }
 #endif
-    RETURN_IF(m_listProposalsOpenOrExpired.empty(), true);
-    int64_t i64IdProposal = m_listProposalsOpenOrExpired.at(0);
-    m_listProposalsOpenOrExpired.removeFirst();
+    RETURN_IF(m_listSentProposals.empty(), true);
+    int64_t i64IdProposal = m_listSentProposals.at(0);
+    m_listSentProposals.removeFirst();
     /* Update proposal on database */
     RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
       , "Unable to update proposal on database", false);
@@ -1332,9 +1337,12 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     /* Insert proposal on database */
     QMap<QString, QString> mapValuesDbInsert = mapValues;
     mapValuesDbInsert.insert("status", "proposal send");
+    mapValuesDbInsert.insert("req_id"
+      , QString::number(ui->sbReqIdSent->value()));
     m_i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
     RETURN_IFW(-1 == m_i64LastIdProposal
       , "Unable to insert proposal on database", false);
+    m_listSentProposals.append(m_i64LastIdProposal);
     // store contract_type and price to send buy fro CALL or PUT request
     sProposalInfo info;
     info.strProposalId = "";
@@ -1433,6 +1441,21 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     strMsgType = "error";
     mapValues.insert("code", msg__error__code);
     mapValues.insert("message", msg__error__message);
+    QString strMsgType;
+    if (m_JSonValueStr(msg, "msg_type", strMsgType) &&
+        m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) 
+    {
+      if (("proposal" == strMsgType) || ("buy" == strMsgType)) {
+        sProposalInfo info;
+        int i64Id = m_i64IdProposalByInfo("req_id"
+          , QString::number(i64ReqIdRecv), info);
+        if (-1 != i64Id) {
+          m_DbProposalUpdate(
+              {{"status", "proposal error"},{"error",msg__error__message}}
+            , i64Id);
+        }
+      }
+    }
   }
   else
   { /* Decode response based on msg_type */
@@ -1641,9 +1664,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Proposal Info a contract_id = %1")
             .arg(msg__proposal_open_contract__contract_id)
           , false);
-        if (!m_listProposalsOpenOrExpired.contains(i64Id)) {
-          m_listProposalsOpenOrExpired.append(i64Id);
-        }
         bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
         info.strStatus = msg__proposal_open_contract__status;
         info.i64CountDown = i64CountDown;
@@ -1819,13 +1839,18 @@ int64_t CAppBrokerBinary::m_i64IdProposalByInfo(const QString& strInfoName
   for(auto id: m_mapProposalId2Info.keys())
   {
     auto info = m_mapProposalId2Info.value(id);
-    if      (("proposal_id" == strInfoName       ) && 
+    if      (("proposal_id" == strInfoName) && 
              (strInfoValue  == info.strProposalId))
     {
       i64IdProposal = id; infoRet = info;  break;
     }
-    else if (("contract_id" == strInfoName       ) && 
+    else if (("contract_id" == strInfoName) && 
              (strInfoValue  == info.strContractId))
+    {
+      i64IdProposal = id; infoRet = info;  break;
+    }
+    else if (("req_id" == strInfoName) && 
+             (strInfoValue.toLongLong()  == info.i64ReqId))
     {
       i64IdProposal = id; infoRet = info;  break;
     }

@@ -74,6 +74,7 @@ public:
     QString strPrice;
     QString strStatus;
     int64_t i64CountDown;
+    int64_t i64ReqId;
   };
 
   static QString CurrentDateTime();
@@ -137,7 +138,7 @@ private:
   
   int64_t m_i64LastIdProposal;
   QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
-  QList<int64_t> m_listProposalsOpenOrExpired;
+  QList<int64_t> m_listSentProposals;
 
   void m_StatusUpdate(Status);
   void m_LookApply(const QString&);
