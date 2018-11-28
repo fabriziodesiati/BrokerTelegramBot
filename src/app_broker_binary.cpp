@@ -1351,6 +1351,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.strPrice = mapValues.value("amount");
     info.strStatus = "";
     info.i64CountDown = 0;
+    info.i64ReqId = ui->sbReqIdSent->value();
     m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
   }
   else if ("buy" == strMsgType)
