@@ -423,6 +423,8 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
   }
   CATCH_ABORT_WDG(!m_DbHistoryRelaod(true)
     , "Cannot reload history from database");
+  CATCH_ABORT_WDG(!m_DbProposalsRelaod(true)
+    , "Cannot reload history from database");
 }
 
 /* ==========================================================================
@@ -804,24 +806,26 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
 {
   m_modelHistory.setQuery(
     QString("SELECT * from history %1 ORDER BY date_time DESC")
-      .arg(-1 == m_i64SessionIdSelected ? ""
-  : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
+      .arg(-1 == m_i64SessionIdSelected 
+        ? ""
+        : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
   /* Hide columns first time */
   static bool bHideColumns = true;
-  static const QList<bool> listHiddenCols = QList<bool>()
-    << true  //id
-    << true  //session_id
-    << false //date_time
-    << false //operation
-    << false //balance
-    << false //currency
-    << false //parameters
-    << true; //details    
+  static const QList<QPair<bool, bool>> listShowResizeCols = {
+      {false,false} //id
+    , {false,false} //session_id
+    , {true ,true } //date_time
+    , {true ,true } //operation
+    , {true ,true } //balance
+    , {true ,true } //currency
+    , {true ,false} //parameters
+    , {false,false} //details
+  };
   if (bHideColumns)
   {
     int iCol = 0;
-    for(auto bHidden: listHiddenCols) {
-      ui->tbHistory->setColumnHidden(iCol++, bHidden);
+    for(auto pair: listShowResizeCols) {
+      ui->tbHistory->setColumnHidden(iCol++, !pair.first);
     }
     bHideColumns = false;
   }
@@ -834,7 +838,7 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
   { /* Reset column width based on size*/
     for(auto iCol=0; iCol < m_modelHistory.columnCount(); ++iCol)
     { // Resize only shown clolumns
-      if (!listHiddenCols.at(iCol)) {
+      if (listShowResizeCols.at(iCol).second) {
         ui->tbHistory->resizeColumnToContents(iCol);
       }
     }
@@ -854,34 +858,38 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
 bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
 {
   m_modelProposals.setQuery(
-    QString("SELECT * from proposals ORDER BY date_time DESC"));
+    QString("SELECT * from proposals %1 ORDER BY date_time DESC")
+      .arg(-1 == m_i64SessionIdSelected 
+        ? ""
+        : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
   /* Hide columns first time */
   static bool bHideColumns = true;
-  static const QList<bool> listHiddenCols = QList<bool>()
-    << true  //id
-    << true  //session_id
-    << false //date_time
-    << false //status_tbot
-    << false //status
-    << false //profit
-    << false //profit_percentage
-    << false //countdown
-    << false //contract_type
-    << false //symbolA
-    << false //symbolB
-    << false //amount
-    << false //currency
-    << false //date_start
-    << false //date_expiry
-    << false //error
-    << true  //req_id
-    << true  //proposal_id
-    << true; //contract_id;
+  static const QList<QPair<bool, bool>> listShowResizeCols = {
+      {false,false} //id
+    , {false,false} //session_id
+    , {true ,true } //date_time
+    , {true ,true } //status_tbot
+    , {true ,true } //status
+    , {true ,true } //profit
+    , {true ,true } //profit_percentage
+    , {true ,true } //countdown
+    , {true ,true } //contract_type
+    , {true ,true } //symbolA
+    , {true ,true } //symbolB
+    , {true ,true } //amount
+    , {true ,true } //currency
+    , {true ,true } //date_start
+    , {true ,true } //date_expiry
+    , {true ,false} //error
+    , {false,false} //req_id
+    , {false,false} //proposal_id
+    , {false,false} //contract_id  
+  };
   if (bHideColumns)
   {
     int iCol = 0;
-    for(auto bHidden: listHiddenCols) {
-      ui->tbProposals->setColumnHidden(iCol++, bHidden);
+    for(auto pair: listShowResizeCols) {
+      ui->tbProposals->setColumnHidden(iCol++, !pair.first);
     }
     bHideColumns = false;
   }
@@ -894,7 +902,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
   { /* Reset column width based on size*/
     for(auto iCol=0; iCol < m_modelProposals.columnCount(); ++iCol)
     { // Resize only shown clolumns
-      if (!listHiddenCols.at(iCol)) {
+      if (listShowResizeCols.at(iCol).second) {
         ui->tbProposals->resizeColumnToContents(iCol);
       }
     }
@@ -1237,6 +1245,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
       , "Cannot place proposal in this status", true);
     RETURN_IFW_WDG(-1 == m_i64LastIdProposal
       , "Cannot retrieve last inserted proposal", false);
+    /* Remove last proposal */
+    m_listSentProposals.removeLast();
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate({{"status", "NO"}}, m_i64LastIdProposal)
       , "Unable to update proposal on database", false);
@@ -1871,17 +1881,21 @@ bool CAppBrokerBinary::m_ProposalResumeUpdate()
 {
   /* Select proposal resume */
   static const QMap<QString,QString> mapRole2Query = {
-      {"TOT" ,"SELECT count(*) as TOT  FROM Proposals"}
+      {"TOT" ,"SELECT count(*) as TOT  FROM Proposals WHERE status != 'NO'"}
     , {"SOLD","SELECT count(*) as SOLD FROM Proposals WHERE status IN \
        ('open','sold')"}
     , {"LOST","SELECT count(*) as LOST FROM Proposals WHERE status IN ('lost')"}
     , {"WON" ,"SELECT count(*) as WON  FROM Proposals WHERE status IN ('won')" }
-    , {"PROF","SELECT sum(profit) as PROF FROM Proposals"                      }    
+    , {"PROF","SELECT sum(profit) as PROF FROM Proposals WHERE 1=1"            }    
   };
   for (auto strRole: mapRole2Query.keys())
   {
     QSqlQuery qry;
     QString strQuery = mapRole2Query.value(strRole);
+    if (-1 != m_i64SessionIdSelected) {
+      strQuery.append(QString(" AND session_id=%1")
+        .arg(m_i64SessionIdSelected));
+    }
     RETURN_IFW_WDG(!qry.exec(strQuery)
       , QString("Unable to execute query [%1] E=%2")
         .arg(strQuery).arg(qry.lastError().text()), false);
