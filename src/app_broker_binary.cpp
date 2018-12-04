@@ -864,32 +864,37 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
         : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
   /* Hide columns first time */
   static bool bHideColumns = true;
-  static const QList<QPair<bool, bool>> listShowResizeCols = {
-      {false,false} //id
-    , {false,false} //session_id
-    , {true ,true } //date_time
-    , {true ,true } //status_tbot
-    , {true ,true } //status
-    , {true ,true } //profit
-    , {true ,true } //profit_percentage
-    , {true ,true } //countdown
-    , {true ,true } //contract_type
-    , {true ,true } //symbolA
-    , {true ,true } //symbolB
-    , {true ,true } //amount
-    , {true ,true } //currency
-    , {true ,true } //date_start
-    , {true ,true } //date_expiry
-    , {true ,false} //error
-    , {false,false} //req_id
-    , {false,false} //proposal_id
-    , {false,false} //contract_id  
+  struct sColumnConf {
+    bool bShow;
+    bool bResize;
+    int iSize = 0;
+  };
+  static const QList<sColumnConf> listShowResizeCols = {
+      {false,false}     //id
+    , {false,false}     //session_id
+    , {true ,true }     //date_time
+    , {true ,true }     //status_tbot
+    , {true ,true }     //status
+    , {true ,true }     //profit
+    , {true ,true , 50} //profit_percentage
+    , {true ,true , 30} //countdown
+    , {true ,true , 30} //contract_type
+    , {true ,true , 30} //symbolA
+    , {true ,true , 30} //symbolB
+    , {true ,true , 30} //amount
+    , {false,false}     //currency
+    , {true ,true}      //date_start
+    , {true ,true}      //date_expiry
+    , {true ,false}     //error
+    , {false,false}     //req_id
+    , {false,false}     //proposal_id
+    , {false,false}     //contract_id  
   };
   if (bHideColumns)
   {
     int iCol = 0;
-    for(auto pair: listShowResizeCols) {
-      ui->tbProposals->setColumnHidden(iCol++, !pair.first);
+    for(auto conf: listShowResizeCols) {
+      ui->tbProposals->setColumnHidden(iCol++, !conf.bShow);
     }
     bHideColumns = false;
   }
@@ -902,8 +907,14 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
   { /* Reset column width based on size*/
     for(auto iCol=0; iCol < m_modelProposals.columnCount(); ++iCol)
     { // Resize only shown clolumns
-      if (listShowResizeCols.at(iCol).second) {
-        ui->tbProposals->resizeColumnToContents(iCol);
+      sColumnConf conf = listShowResizeCols.at(iCol);
+      if (conf.bShow && conf.bResize) {
+        if (0 == conf.iSize) {
+          ui->tbProposals->resizeColumnToContents(iCol);
+        }
+        else {
+          ui->tbProposals->setColumnWidth(iCol, conf.iSize);
+        }
       }
     }
     bResizeToContents = false;
@@ -1918,7 +1929,8 @@ bool CAppBrokerBinary::m_ProposalResumeUpdate()
     }
     else if ("PROF" == strRole) {
       double f64Profit = qV.toDouble();
-      ui->leProposalsProfit->setText(QString::number(f64Profit));
+      ui->leProposalsProfit->setText(QString("PROF: %1")
+        .arg(QString::number(f64Profit)));
       ui->leProposalsProfit->setStyleSheet(f64Profit > 0.0
         ? "QLabel { color : lightgreen; }" : "QLabel { color : red; }");
     }
