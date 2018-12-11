@@ -91,8 +91,11 @@ public:
     , const QString& tokenBot, QMainWindow *parent = 0);
   virtual ~CAppBrokerBinary();
 
+protected:
+  void closeEvent(QCloseEvent* event);
+
 signals:
-  void closed();
+  void appClosed();
 
 public slots:
   void slotOnSocketError(QAbstractSocket::SocketError);
@@ -101,6 +104,7 @@ public slots:
   void slotOnMessageSocketReceived(const QString&);
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
+  void slotOnClearSessionClicked();
   void slotOnLookApply(const QString&);
   void slotOnBalanceClicked();
   void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
@@ -150,6 +154,7 @@ private:
   int64_t m_DbProposalInsert(const QMap<QString,QString>&);
   bool m_DbProposalUpdate(const QMap<QString,QString>&, const int64_t&);
   bool m_ComboSessionLoad();
+  bool m_ClearSession(const int64_t&);
   bool m_SocketOpen();
   bool m_BotStart();
   void m_BalanceUpdate(const QString&);

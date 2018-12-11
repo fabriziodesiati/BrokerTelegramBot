@@ -161,7 +161,7 @@ int main(int argc,char* argv[])
     strAppIdBroker, strTokenBroker, strTokenBot);
   /* Connect signals and slots */
   QObject::connect(
-      pAppBrokerBinary, &CAppBrokerBinary::closed
+      pAppBrokerBinary, &CAppBrokerBinary::appClosed
     , &app
     , &QCoreApplication::quit);
   /* Show widget main */

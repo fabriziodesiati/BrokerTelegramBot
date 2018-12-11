@@ -27,6 +27,7 @@
 #include <QStyleFactory>
 #include <QSqlQuery>
 #include <QSqlRecord>
+#include <QMessageBox>
 #include "ui_wdgmain.h"
 #include "ui_wdgcentral.h"
 
@@ -259,6 +260,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->comboSession
     , SIGNAL(currentTextChanged(const QString&))
     , SLOT(slotOnComboSessionsCurrentTextChanged(const QString&)));
+  connect(ui->pbClearSession
+    , SIGNAL(clicked())
+    , SLOT(slotOnClearSessionClicked()));  
   connect(ui->cbLookApply
     , SIGNAL(currentTextChanged(QString))
     , SLOT(slotOnLookApply(QString)));
@@ -309,6 +313,38 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 CAppBrokerBinary::~CAppBrokerBinary()
 {
   delete uiMain;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: closeEvent
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181211
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::closeEvent(QCloseEvent*)
+{
+  RETURN_IF(-1 == m_i64SessionId, );
+  QSqlQuery qry;
+  QString strQuery = QString(
+      "SELECT count(*) as COUNT FROM proposals WHERE session_id = %1")
+    .arg(QString::number(m_i64SessionId));
+  if (-1 != m_i64SessionIdSelected) {
+    strQuery.append(QString(" AND session_id=%1")
+      .arg(m_i64SessionIdSelected));
+  }
+  RETURN_IF(!qry.exec(strQuery), );
+  RETURN_IF(!qry.next(), );
+  QVariant qV = qry.value(0);
+  if (0 == qV.toInt() && (QMessageBox::Yes == QMessageBox::warning(this
+    , tr("Warning")
+    , tr("Session without proposals... Do you want to remove it?")
+    , QMessageBox::Cancel | QMessageBox::Yes)))
+  {
+    m_ClearSession(m_i64SessionId);
+  }
+  emit appClosed();
 }
 
 /* ==========================================================================
@@ -370,7 +406,6 @@ void CAppBrokerBinary::slotOnSocketDisconnected()
     , "Unable to insert history record on database");
   // Reconnect socket
   CATCH_ABORT_WDG(!m_SocketOpen(), "Cannot reconnect socket");
-  //emit closed();
 }
 
 /* ==========================================================================
@@ -414,6 +449,7 @@ void CAppBrokerBinary::slotOnMessageTelegramBot(Telegram::Message message)
 void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
   const QString& strSelectedSession)
 {
+  ui->pbClearSession->setEnabled(false);
   m_i64SessionIdSelected = -1;
   RETURN_IF(strSelectedSession.isEmpty(), );  
   if ("ALL" != strSelectedSession) {
@@ -425,6 +461,26 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
     , "Cannot reload history from database");
   CATCH_ABORT_WDG(!m_DbProposalsRelaod(true)
     , "Cannot reload history from database");
+  ui->pbClearSession->setEnabled(-1 != m_i64SessionIdSelected &&
+    m_i64SessionId != m_i64SessionIdSelected);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnClearSessionClicked
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181031
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnClearSessionClicked()
+{
+  // Clear selected session
+  RETURN_IFC_WDG(!m_ClearSession(m_i64SessionIdSelected)
+    , "Error on remove session", );
+  // Reload combo of sessions
+  RETURN_IFC_WDG(!m_ComboSessionLoad()
+    , "Error on reload sessions", );
 }
 
 /* ==========================================================================
@@ -1041,6 +1097,7 @@ bool CAppBrokerBinary::m_DbProposalUpdate(const QMap<QString,QString>& mapValues
   return m_DbProposalsRelaod(true);
 
 }
+
 /* ==========================================================================
  *        FUNCTION NAME: m_ComboSessionLoad
  * FUNCTION DESCRIPTION: 
@@ -1079,6 +1136,37 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
   if (!strSelected.isEmpty()) {
     ui->comboSession->setCurrentText(strSelected);
   }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_ClearSession
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181211
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_ClearSession(const int64_t& i64SessionId)
+{
+  /* DELETE from history */
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
+      QString("DELETE FROM history WHERE session_id=%1")
+        .arg(QString::number(i64SessionId)))
+    , "Unable to delete session entries from history table"
+    , false);
+  /* DELETE from proposals */
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
+      QString("DELETE FROM proposals WHERE session_id=%1")
+        .arg(QString::number(i64SessionId)))
+    , "Unable to delete session entries from proposals table"
+    , false);
+  /* DELETE from sessions */
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
+      QString("DELETE FROM sessions WHERE id=%1")
+        .arg(QString::number(i64SessionId)))
+    , "Unable to delete session entry from sessions table"
+    , false);  
   return true;
 }
 
@@ -1892,12 +1980,12 @@ bool CAppBrokerBinary::m_ProposalResumeUpdate()
 {
   /* Select proposal resume */
   static const QMap<QString,QString> mapRole2Query = {
-      {"TOT" ,"SELECT count(*) as TOT  FROM Proposals WHERE status != 'NO'"}
-    , {"SOLD","SELECT count(*) as SOLD FROM Proposals WHERE status IN \
+      {"TOT" ,"SELECT count(*) as TOT  FROM proposals WHERE status != 'NO'"}
+    , {"SOLD","SELECT count(*) as SOLD FROM proposals WHERE status IN \
        ('open','sold')"}
-    , {"LOST","SELECT count(*) as LOST FROM Proposals WHERE status IN ('lost')"}
-    , {"WON" ,"SELECT count(*) as WON  FROM Proposals WHERE status IN ('won')" }
-    , {"PROF","SELECT sum(profit) as PROF FROM Proposals WHERE 1=1"            }    
+    , {"LOST","SELECT count(*) as LOST FROM proposals WHERE status IN ('lost')"}
+    , {"WON" ,"SELECT count(*) as WON  FROM proposals WHERE status IN ('won')" }
+    , {"PROF","SELECT sum(profit) as PROF FROM proposals WHERE 1=1"            }    
   };
   for (auto strRole: mapRole2Query.keys())
   {

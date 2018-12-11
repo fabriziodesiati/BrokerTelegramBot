@@ -58,6 +58,17 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="pbClearSession">
+       <property name="text">
+        <string/>
+       </property>
+       <property name="icon">
+        <iconset resource="../BrokerTelegramBot.qrc">
+         <normaloff>:/icons/resources/clear.png</normaloff>:/icons/resources/clear.png</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QLabel" name="labelTheme">
        <property name="text">
         <string>Theme:</string>
@@ -232,7 +243,7 @@
       <enum>Qt::Vertical</enum>
      </property>
      <widget class="QTableView" name="tbHistory"/>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <layout class="QGridLayout" name="gridLayout">
        <property name="leftMargin">
         <number>2</number>
