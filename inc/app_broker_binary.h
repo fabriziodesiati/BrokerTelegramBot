@@ -153,6 +153,7 @@ private:
   int64_t m_DbHistoryInsert(const QMap<QString,QString>&);
   int64_t m_DbProposalInsert(const QMap<QString,QString>&);
   bool m_DbProposalUpdate(const QMap<QString,QString>&, const int64_t&);
+  bool m_DbProposalDelete(const int64_t&);
   bool m_ComboSessionLoad();
   bool m_ClearSession(const int64_t&);
   bool m_SocketOpen();

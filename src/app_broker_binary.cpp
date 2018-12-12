@@ -43,7 +43,7 @@
  */
 #define DEBUG_APP_WDG(strFunc,strMsg)\
   do { \
-  ui->lblInfo->setText(QString("[DEBUG] %1: %2").arg(strFunc).arg(strMsg)); \
+  /*ui->lblInfo->setText(QString("[DEBUG] %1: %2").arg(strFunc).arg(strMsg));*/\
   DEBUG_APP(strFunc,strMsg); \
   } while (false)
 
@@ -975,7 +975,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     }
     bResizeToContents = false;
   }
-  // Reload proposals
+  // Reload remuse prosals
   RETURN_IFW(!m_ProposalResumeUpdate(), "Unable to update resume proposals"
     , false);
   return true;
@@ -1093,7 +1093,25 @@ bool CAppBrokerBinary::m_DbProposalUpdate(const QMap<QString,QString>& mapValues
        WHERE id=%2")
       .arg(strSetValues)
       .arg(i64Id))
-    , "Unable to update proppsals table", false);  
+    , "Unable to update propsals table", false);  
+  return m_DbProposalsRelaod(true);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbProposalDelete
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181212
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbProposalDelete(const int64_t& i64Id)
+{
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
+      "DELETE FROM proposals \
+       WHERE id=%2")
+      .arg(i64Id))
+    , "Unable to delete proposal from db", false);  
   return m_DbProposalsRelaod(true);
 
 }
@@ -1307,6 +1325,22 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
           })
       , "Error on send proposal request", false);    
   }
+  else if (strMsg == "NO") {
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW_WDG(Status::kWAITFORCON != m_status
+      , "Cannot place proposal in this status", true);
+    RETURN_IFW_WDG(-1 == m_i64LastIdProposal
+      , "Cannot retrieve last inserted proposal", false);
+    /* Remove last proposal */
+    m_listSentProposals.removeLast();
+    /* Update proposal on database */
+    RETURN_IFW(!m_DbProposalDelete(m_i64LastIdProposal)
+      , "Unable to delete proposal on database", false);
+    m_StatusUpdate(Status::kAUTHORIZED);
+    /* reset last proposal: all next queries pass by map */
+    m_mapProposalId2Info.remove(m_i64LastIdProposal);
+    m_i64LastIdProposal = -1;    
+  }
   else if (strMsg == "GO") {
     // Early return without CATCH_ABORT (return true)
     RETURN_IFW_WDG(Status::kWAITFORCON != m_status
@@ -1337,22 +1371,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
             , {"price", strPrice}
           })
       , "Error on send proposal request", false);    
-  }
-  else if (strMsg == "NO") {
-    // Early return without CATCH_ABORT (return true)
-    RETURN_IFW_WDG(Status::kWAITFORCON != m_status
-      , "Cannot place proposal in this status", true);
-    RETURN_IFW_WDG(-1 == m_i64LastIdProposal
-      , "Cannot retrieve last inserted proposal", false);
-    /* Remove last proposal */
-    m_listSentProposals.removeLast();
-    /* Update proposal on database */
-    RETURN_IFW(!m_DbProposalUpdate({{"status", "NO"}}, m_i64LastIdProposal)
-      , "Unable to update proposal on database", false);
-    m_StatusUpdate(Status::kAUTHORIZED);
-    /* reset last proposal: all next queries pass by map */
-    m_i64LastIdProposal = -1;    
-  }
+  }  
   else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
     // Update status_tbot on database
 #if APP_DEBUG == 1
