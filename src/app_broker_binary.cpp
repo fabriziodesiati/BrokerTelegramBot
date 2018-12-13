@@ -1327,8 +1327,10 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
   }
   else if (strMsg == "NO") {
     // Early return without CATCH_ABORT (return true)
+#if 0 
     RETURN_IFW_WDG(Status::kWAITFORCON != m_status
       , "Cannot place proposal in this status", true);
+#endif
     RETURN_IFW_WDG(-1 == m_i64LastIdProposal
       , "Cannot retrieve last inserted proposal", false);
     /* Remove last proposal */
