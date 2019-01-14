@@ -260,6 +260,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->comboSession
     , SIGNAL(currentTextChanged(const QString&))
     , SLOT(slotOnComboSessionsCurrentTextChanged(const QString&)));
+  connect(ui->comboProposals
+    , SIGNAL(currentTextChanged(const QString&))
+    , SLOT(slotOnComboProposalsCurrentTextChanged(const QString&)));
   connect(ui->pbClearSession
     , SIGNAL(clicked())
     , SLOT(slotOnClearSessionClicked()));  
@@ -463,6 +466,21 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
     , "Cannot reload history from database");
   ui->pbClearSession->setEnabled(-1 != m_i64SessionIdSelected &&
     m_i64SessionId != m_i64SessionIdSelected);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnComboProposalsCurrentTextChanged
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190114
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnComboProposalsCurrentTextChanged(
+  const QString& strSelectedSession)
+{
+  CATCH_ABORT_WDG(!m_DbProposalsRelaod(true)
+    , "Cannot reload proposals from database");
 }
 
 /* ==========================================================================
@@ -862,7 +880,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , proposal_id text \
         , contract_id text \
         , trend_id \
-        , FOREIGN KEY(session_id) REFERENCES sessions(id)) \
+        , FOREIGN KEY(session_id) REFERENCES sessions(id) \
         , FOREIGN KEY(trend_id) REFERENCES trend(id))")
     , "Unable to create proposals table"
     , false);

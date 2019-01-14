@@ -104,6 +104,7 @@ public slots:
   void slotOnMessageSocketReceived(const QString&);
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
+  void slotOnComboProposalsCurrentTextChanged(const QString&);
   void slotOnClearSessionClicked();
   void slotOnLookApply(const QString&);
   void slotOnBalanceClicked();
