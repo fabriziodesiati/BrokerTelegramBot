@@ -822,6 +822,23 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
     , "Unable to create history table"
     , false);
+  /* Create Table trend */
+  RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
+      "CREATE TABLE IF NOT EXISTS trend ( \
+          id integer PRIMARY KEY AUTOINCREMENT \
+        , session_id NOT NULL \
+        , date_time text NOT NULL \
+        , contract_type text NOT NULL \
+        , symbolA text NOT NULL \
+        , symbolB text NOT NULL \
+        , value real NOT NULL \
+        , margin real NOT NULL \
+        , amount text NOT NULL \
+        , currency text NOT NULL \
+        , status text NOT NULL \
+        , FOREIGN KEY(session_id) REFERENCES sessions(id))")
+    , "Unable to create trend table"
+    , false);
   /* Create Table proposals */
   RETURN_IFC_WDG(!CAppDatabase::GetInstance().execQuery(
       "CREATE TABLE IF NOT EXISTS proposals ( \
@@ -844,9 +861,12 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , req_id int \
         , proposal_id text \
         , contract_id text \
-        , FOREIGN KEY(session_id) REFERENCES sessions(id))")
+        , trend_id \
+        , FOREIGN KEY(session_id) REFERENCES sessions(id)) \
+        , FOREIGN KEY(trend_id) REFERENCES trend(id))")
     , "Unable to create proposals table"
     , false);
+  
   return true;
 }
 
@@ -913,11 +933,16 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
  * ========================================================================== */
 bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
 {
+  QString strComboProposals = ui->comboProposals->currentText();
   m_modelProposals.setQuery(
-    QString("SELECT * from proposals %1 ORDER BY date_time DESC")
-      .arg(-1 == m_i64SessionIdSelected 
-        ? ""
-        : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
+    QString("SELECT * from proposals WHERE 1=1 %1 %2 ORDER BY date_time DESC")
+      .arg(-1 == m_i64SessionIdSelected ? ""
+        : QString("AND session_id=%1").arg(m_i64SessionIdSelected))
+      .arg("VIP" == strComboProposals
+        ? "AND trend_id IS NULL"
+        : "trend" == strComboProposals 
+        ? "AND trend_id IS NOT NULL"
+        : ""));
   /* Hide columns first time */
   static bool bHideColumns = true;
   struct sColumnConf {
@@ -944,7 +969,8 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
     , {true ,false}     //error
     , {false,false}     //req_id
     , {false,false}     //proposal_id
-    , {false,false}     //contract_id  
+    , {false,false}     //contract_id
+    , {false,false}     //trend_id
   };
   if (bHideColumns)
   {
