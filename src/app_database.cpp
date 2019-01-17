@@ -197,12 +197,12 @@ bool CAppDatabase::execQuery(const QString& strQuery)
 int64_t CAppDatabase::execInsertQuery(const QString& strQuery)
 {
   // check if database is connected
-  RETURN_IFW(!isConnected(), "Database isn't connected", false);
+  RETURN_IFW(!isConnected(), "Database isn't connected", -1);
   // execute query
   QSqlQuery qry;
   RETURN_IFW(!qry.exec(strQuery)
     , QString("Unable to execute insert query [%1] E=%2")
-      .arg(strQuery).arg(qry.lastError().text()), false);
-  RETURN_IFW(1 > qry.numRowsAffected(), "Could not insert a record", false);
+      .arg(strQuery).arg(qry.lastError().text()), -1);
+  RETURN_IFW(1 > qry.numRowsAffected(), "Could not insert a record", -1);
   return qry.lastInsertId().toInt();
 }

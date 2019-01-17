@@ -77,6 +77,11 @@ public:
     int64_t i64ReqId;
   };
 
+  struct sTrendInfo {
+    QString strQuote;
+    int64_t i64ReqId;
+  };
+
   static QString CurrentDateTime();
 
   /**
@@ -108,8 +113,11 @@ public slots:
   void slotOnClearSessionClicked();
   void slotOnLookApply(const QString&);
   void slotOnBalanceClicked();
+  void slotOnTrendStartClicked();
+  void slotOnTrendStopClicked();
   void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
   void slotOnItemSelectedProposal(const QItemSelection&, const QItemSelection&);
+  void slotOnItemSelectedTrend(const QItemSelection&, const QItemSelection&);  
   void slotOnTimeout();
 
 protected slots:
@@ -126,6 +134,8 @@ private:
   CWdgCentral m_wdgCentral;
   CAppModelHistory m_modelHistory;
   CAppModelProposals m_modelProposals;
+  CAppModelProposals m_modelTrend;
+  CAppModelProposals m_modelTrendProposals;
   
   QUrl m_url;
 
@@ -140,21 +150,29 @@ private:
   QString m_strBalanceStart;
   int64_t m_i64SessionId;
   int64_t m_i64SessionIdSelected;
+  int64_t m_i64TrendIdSelected;
   
   int64_t m_i64LastIdProposal;
   QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
   QList<int64_t> m_listSentProposals;
+
+  int64_t m_i64LastIdTrend;
+  QMap<int64_t,sTrendInfo> m_mapTrendId2Info;
 
   void m_StatusUpdate(Status);
   void m_LookApply(const QString&);
   bool m_DbCreateTables();
   bool m_DbHistoryRelaod(bool = false);
   bool m_DbProposalsRelaod(bool = false);
+  bool m_DbTrendRelaod(bool = false);
+  bool m_DbTrendProposalsRelaod(bool = false);
   int64_t m_DbSessionInsert();
   int64_t m_DbHistoryInsert(const QMap<QString,QString>&);
   int64_t m_DbProposalInsert(const QMap<QString,QString>&);
   bool m_DbProposalUpdate(const QMap<QString,QString>&, const int64_t&);
   bool m_DbProposalDelete(const int64_t&);
+  int64_t m_DbTrendInsert(const QMap<QString,QString>&);
+  bool m_DbTrendUpdate(const QMap<QString,QString>&, const int64_t&);
   bool m_ComboSessionLoad();
   bool m_ClearSession(const int64_t&);
   bool m_SocketOpen();
@@ -173,6 +191,7 @@ private:
   bool m_JSonValueStrOrLong(const QJsonObject&, const QString&, QString&);
   bool m_JSonValueDoubleOrStr(const QJsonObject&, const QString&, double&);
   int64_t m_i64IdProposalByInfo(const QString&, const QString&, sProposalInfo&);
+  int64_t m_i64IdTrendByInfo(const QString&, const QString&, sTrendInfo&);
   bool m_ProposalResumeUpdate();
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
 };

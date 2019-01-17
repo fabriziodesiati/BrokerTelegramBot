@@ -213,7 +213,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_strBalanceStart      {                  "" }
 , m_i64SessionId         {                  -1 }
 , m_i64SessionIdSelected {                  -1 }
+, m_i64TrendIdSelected   {                  -1 }
 , m_i64LastIdProposal    {                  -1 }
+, m_i64LastIdTrend       {                  -1 }
 {
   /* Set URL */
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
@@ -244,6 +246,8 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   /* Connect model */
   ui->tbHistory->setModel(&m_modelHistory);
   ui->tbProposals->setModel(&m_modelProposals);
+  ui->tbTrend->setModel(&m_modelTrend);
+  ui->tbTrendProposals->setModel(&m_modelTrendProposals);
 
   /* TableView aspects */
   ui->tbHistory->setAlternatingRowColors(true);
@@ -252,6 +256,12 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   ui->tbProposals->setAlternatingRowColors(true);
   ui->tbProposals->setSelectionBehavior(QAbstractItemView::SelectRows);
   ui->tbProposals->setSelectionMode(QAbstractItemView::SingleSelection);
+  ui->tbTrend->setAlternatingRowColors(true);
+  ui->tbTrend->setSelectionBehavior(QAbstractItemView::SelectRows);
+  ui->tbTrend->setSelectionMode(QAbstractItemView::SingleSelection);
+  ui->tbTrendProposals->setAlternatingRowColors(true);
+  ui->tbTrendProposals->setSelectionBehavior(QAbstractItemView::SelectRows);
+  ui->tbTrendProposals->setSelectionMode(QAbstractItemView::SingleSelection);
 
   /* connect signals and slots */
   connect(&CAppDatabase::GetInstance()
@@ -272,6 +282,15 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->pbBalance
     , SIGNAL(clicked())
     , SLOT(slotOnBalanceClicked()));
+  connect(ui->pbClearSession
+    , SIGNAL(clicked())
+    , SLOT(slotOnClearSessionClicked()));
+  connect(ui->pbTrendStart
+    , SIGNAL(clicked())
+    , SLOT(slotOnTrendStartClicked()));
+  connect(ui->pbTrendStop
+    , SIGNAL(clicked())
+    , SLOT(slotOnTrendStopClicked()));
   connect(ui->tbHistory->selectionModel()
     , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
     , SLOT(slotOnItemSelectedHistory(
@@ -279,6 +298,10 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->tbProposals->selectionModel()
     , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
     , SLOT(slotOnItemSelectedProposal(
+      const QItemSelection&, const QItemSelection&)));
+  connect(ui->tbTrend->selectionModel()
+    , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
+    , SLOT(slotOnItemSelectedTrend(
       const QItemSelection&, const QItemSelection&)));
 
   /* Apply theme settings */
@@ -464,6 +487,10 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
     , "Cannot reload history from database");
   CATCH_ABORT_WDG(!m_DbProposalsRelaod(true)
     , "Cannot reload history from database");
+  CATCH_ABORT_WDG(!m_DbTrendRelaod(true)
+    , "Cannot reload trend from database");
+  CATCH_ABORT_WDG(!m_DbTrendProposalsRelaod(true)
+    , "Cannot reload trend proposals from database");
   ui->pbClearSession->setEnabled(-1 != m_i64SessionIdSelected &&
     m_i64SessionId != m_i64SessionIdSelected);
 }
@@ -500,6 +527,37 @@ void CAppBrokerBinary::slotOnClearSessionClicked()
   RETURN_IFC_WDG(!m_ComboSessionLoad()
     , "Error on reload sessions", );
 }
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnTrendStartClicked
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnTrendStartClicked()
+{
+  // ticks
+  QString strTicks = QString("frx%1%2")
+    .arg(ui->leSymbA->text()).arg(ui->leSymbB->text());
+  RETURN_IFC_WDG(!m_SendSocketMessage("ticks", {{"ticks", strTicks}})
+    , "Error on send ticks request", );
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnTrendStopClicked
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnTrendStopClicked()
+{
+  //TO BE IMPLEMENTED
+}
+
 
 /* ==========================================================================
  *        FUNCTION NAME: slotOnLookApply
@@ -573,6 +631,29 @@ void CAppBrokerBinary::slotOnItemSelectedProposal(const QItemSelection& sel
       m_DetailsUpdate(m_modelProposals, il.first().row());
     }    
   }
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnItemSelectedTrend
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20181102
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
+  , const QItemSelection&)
+{
+#if 0 //TO IMPL
+  if (!sel.isEmpty())
+  {
+    auto il = sel.indexes();
+    if (!il.isEmpty()) {
+      ui->textDetails->setVisible(true);
+      m_DetailsUpdate(m_modelTrend, il.first().row());
+    }    
+  }
+#endif 
 }
 
 /* ==========================================================================
@@ -849,11 +930,13 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , contract_type text NOT NULL \
         , symbolA text NOT NULL \
         , symbolB text NOT NULL \
-        , value real NOT NULL \
-        , margin real NOT NULL \
         , amount text NOT NULL \
         , currency text NOT NULL \
+        , value text NOT NULL \
+        , quote text \
+        , margin text NOT NULL \
         , status text NOT NULL \
+        , req_id int \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
     , "Unable to create trend table"
     , false);
@@ -1026,6 +1109,146 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: m_DbTrendRelaod
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
+{
+  m_modelTrend.setQuery(
+    QString("SELECT * from trend ORDER BY date_time DESC"));
+  /* Hide columns first time */
+  static bool bHideColumns = true;
+  struct sColumnConf {
+    bool bShow;
+    bool bResize;
+    int iSize = 0;
+  };
+  static const QList<sColumnConf> listShowResizeCols = {
+      {false,false}     //id
+    , {false,false}     //session_id
+    , {true ,true }     //date_time
+    , {true ,true , 30} //contract_type
+    , {true ,true , 30} //symbolA
+    , {true ,true , 30} //symbolB
+    , {true ,true , 30} //amount
+    , {false,false}     //currency
+    , {true ,true }     //value
+    , {true ,true }     //quote
+    , {true ,true }     //margin
+    , {true ,true }     //status
+    , {false,false}     //req_id
+  };
+  if (bHideColumns)
+  {
+    int iCol = 0;
+    for(auto conf: listShowResizeCols) {
+      ui->tbTrend->setColumnHidden(iCol++, !conf.bShow);
+    }
+    bHideColumns = false;
+  }
+  /* Resize to contents */
+  static bool bResizeToContents = true;
+  if (bForceResize) {
+    bResizeToContents = true;
+  }
+  if (bResizeToContents && m_modelTrend.rowCount() > 0)
+  { /* Reset column width based on size*/
+    for(auto iCol=0; iCol < m_modelTrend.columnCount(); ++iCol)
+    { // Resize only shown clolumns
+      sColumnConf conf = listShowResizeCols.at(iCol);
+      if (conf.bShow && conf.bResize) {
+        if (0 == conf.iSize) {
+          ui->tbTrend->resizeColumnToContents(iCol);
+        }
+        else {
+          ui->tbTrend->setColumnWidth(iCol, conf.iSize);
+        }
+      }
+    }
+    bResizeToContents = false;
+  }
+  return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbTrendProposalsRelaod
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbTrendProposalsRelaod(bool bForceResize)
+{
+  m_modelTrendProposals.setQuery(
+    QString("SELECT * from proposals WHERE 1=1 %1 ORDER BY date_time DESC")
+      .arg(QString("AND trend_id=%1").arg(m_i64TrendIdSelected)));
+  /* Hide columns first time */
+  static bool bHideColumns = true;
+  struct sColumnConf {
+    bool bShow;
+    bool bResize;
+    int iSize = 0;
+  };
+  static const QList<sColumnConf> listShowResizeCols = {
+      {false,false}     //id
+    , {false,false}     //session_id
+    , {true ,true }     //date_time
+    , {true ,true }     //status_tbot
+    , {true ,true }     //status
+    , {true ,true }     //profit
+    , {true ,true , 50} //profit_percentage
+    , {true ,true , 30} //countdown
+    , {true ,true , 30} //contract_type
+    , {true ,true , 30} //symbolA
+    , {true ,true , 30} //symbolB
+    , {true ,true , 30} //amount
+    , {false,false}     //currency
+    , {true ,true}      //date_start
+    , {true ,true}      //date_expiry
+    , {true ,false}     //error
+    , {false,false}     //req_id
+    , {false,false}     //proposal_id
+    , {false,false}     //contract_id
+    , {false,false}     //trend_id
+  };
+  if (bHideColumns)
+  {
+    int iCol = 0;
+    for(auto conf: listShowResizeCols) {
+      ui->tbTrendProposals->setColumnHidden(iCol++, !conf.bShow);
+    }
+    bHideColumns = false;
+  }
+  /* Resize to contents */
+  static bool bResizeToContents = true;
+  if (bForceResize) {
+    bResizeToContents = true;
+  }
+  if (bResizeToContents && m_modelTrendProposals.rowCount() > 0)
+  { /* Reset column width based on size*/
+    for(auto iCol=0; iCol < m_modelTrendProposals.columnCount(); ++iCol)
+    { // Resize only shown clolumns
+      sColumnConf conf = listShowResizeCols.at(iCol);
+      if (conf.bShow && conf.bResize) {
+        if (0 == conf.iSize) {
+          ui->tbTrendProposals->resizeColumnToContents(iCol);
+        }
+        else {
+          ui->tbTrendProposals->setColumnWidth(iCol, conf.iSize);
+        }
+      }
+    }
+    bResizeToContents = false;
+  }
+  return true;
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: m_DbSessionInsert
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181029
@@ -1158,6 +1381,68 @@ bool CAppBrokerBinary::m_DbProposalDelete(const int64_t& i64Id)
     , "Unable to delete proposal from db", false);  
   return m_DbProposalsRelaod(true);
 
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbTrendInsert
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_DbTrendInsert(
+  const QMap<QString,QString>& mapValues)
+{
+  int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
+      "INSERT INTO trend (\
+        session_id, date_time, contract_type, symbolA, symbolB, amount\
+        , currency, value, margin, status, req_id) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10',%11)")
+      .arg(m_i64SessionId)
+      .arg(CurrentDateTime())
+      .arg(mapValues.value("contract_type"))
+      .arg(mapValues.value("symbolA"))
+      .arg(mapValues.value("symbolB"))
+      .arg(mapValues.value("amount"))
+      .arg(mapValues.value("currency"))
+      .arg(mapValues.value("value"))
+      .arg(mapValues.value("margin"))
+      .arg(mapValues.value("status"))
+      .arg(mapValues.value("req_id")));
+  RETURN_IFC_WDG(-1 == i64Id
+    , "Unable to insert a trend entry on database", i64Id);
+  // Reload proposals
+  RETURN_IFC_WDG(!m_DbTrendRelaod(true)
+    , "Unable to reload trend from database", i64Id);
+  return i64Id;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_DbTrendUpdate
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_DbTrendUpdate(const QMap<QString,QString>& mapValues
+  , const int64_t& i64Id)
+{
+  QString strSetValues;
+  for (auto strFieldName: mapValues.keys()) {
+    strSetValues.append(QString("%1%2 = '%3'")
+      .arg(strSetValues.isEmpty() ? "" : ", ")
+      .arg(strFieldName)
+      .arg(mapValues.value(strFieldName)));
+  }
+  RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
+      "UPDATE trend SET %1 \
+       WHERE id=%2")
+      .arg(strSetValues)
+      .arg(i64Id))
+    , "Unable to update trend table", false);  
+  return m_DbTrendRelaod(true);
 }
 
 /* ==========================================================================
@@ -1559,8 +1844,34 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(mapValues.value("contract_id"))
       .arg(ui->sbReqIdSent->value());
   }
+  else if ("ticks" == strMsgType)
+  { /* ticks */
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
+    strMsg = QStringLiteral(
+      "{                               \
+        \"ticks\": \"%1\",             \
+        \"subscribe\": 1,              \
+        \"req_id\": %2                 \
+       }")
+      .arg(mapValues.value("ticks"))
+      .arg(ui->sbReqIdSent->value());
+    /* Insert trend on database */
+    QMap<QString, QString> mapValuesDbInsert = mapValues;
+    mapValuesDbInsert.insert("status", "START");
+    mapValuesDbInsert.insert("req_id"
+      , QString::number(ui->sbReqIdSent->value()));
+    m_i64LastIdTrend = m_DbTrendInsert(mapValuesDbInsert);
+    RETURN_IFW(-1 == m_i64LastIdTrend
+      , "Unable to insert trend on database", false);
+    // store info
+    sTrendInfo info;    
+    info.strQuote = "";
+    info.i64ReqId = ui->sbReqIdSent->value();
+    m_mapTrendId2Info.insert(m_i64LastIdTrend, info);
+  }
   else {
-    RETURN_IFC_WDG(true, QString("Message type %1 is unrecognized").arg(strMsgType)
+    RETURN_IFC_WDG(true, QString("Message type %1 is unrecognized")
+        .arg(strMsgType)
       , false);    
   }
   // Send
@@ -1855,6 +2166,32 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
             , i64Id)
           , "Unable to update proposal on database", false);
       }
+      else if ("tick" == strMsgType) 
+      { /* ticks response */
+        QJsonObject msg__tick;
+        RETURN_IFW_WDG(!m_JSonObject(msg, "tick"
+          , msg__tick)
+          , "JSonObject 'tick' doesn't exist", false);
+        QString msg__tick__quote;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__tick
+          , "quote"
+          , msg__tick__quote)
+          , "JSonValue 'quote' doesn't exist", false);
+        sTrendInfo info;
+        int i64Id = m_i64IdTrendByInfo("req_id"
+          , QString::number(i64ReqIdRecv), info);
+        RETURN_IFW_WDG(-1 == i64Id
+          , QString("Cannot retrieve from Trend Info a req_id = %1")
+            .arg(QString::number(i64ReqIdRecv))
+          , false);
+        info.strQuote = msg__tick__quote;
+        m_mapTrendId2Info.insert(i64Id, info);        
+        /* Update trend on database */
+        RETURN_IFW(!m_DbTrendUpdate({
+              {"quote", QString::number(i64ReqIdRecv)}}
+            , i64Id)
+          , "Unable to update trend on database", false);
+      }
     }
   }
   QString strParameters = QString("%1: ").arg(strMsgType);
@@ -2031,6 +2368,30 @@ int64_t CAppBrokerBinary::m_i64IdProposalByInfo(const QString& strInfoName
     }
   }
   return i64IdProposal;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_i64IdTrendByInfo
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190117
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+int64_t CAppBrokerBinary::m_i64IdTrendByInfo(const QString& strInfoName
+  , const QString& strInfoValue, sTrendInfo& infoRet)
+{
+  int64_t i64IdTrend = -1;
+  for(auto id: m_mapTrendId2Info.keys())
+  {
+    auto info = m_mapTrendId2Info.value(id);
+    if (("req_id" == strInfoName) && 
+             (strInfoValue.toLongLong()  == info.i64ReqId))
+    {
+      i64IdTrend = id; infoRet = info;  break;
+    }
+  }
+  return i64IdTrend;
 }
 
 /* ==========================================================================
