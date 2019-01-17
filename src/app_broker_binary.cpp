@@ -2188,7 +2188,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         m_mapTrendId2Info.insert(i64Id, info);        
         /* Update trend on database */
         RETURN_IFW(!m_DbTrendUpdate({
-              {"quote", QString::number(i64ReqIdRecv)}}
+              {"quote", msg__tick__quote}}
             , i64Id)
           , "Unable to update trend on database", false);
       }
