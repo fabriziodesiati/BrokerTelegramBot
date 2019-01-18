@@ -539,10 +539,19 @@ void CAppBrokerBinary::slotOnClearSessionClicked()
 void CAppBrokerBinary::slotOnTrendStartClicked()
 {
   // ticks
-  QString strTicks = QString("frx%1%2")
-    .arg(ui->leSymbA->text()).arg(ui->leSymbB->text());
-  RETURN_IFC_WDG(!m_SendSocketMessage("ticks", {{"ticks", strTicks}})
-    , "Error on send ticks request", );
+  RETURN_IFC_WDG(!m_SendSocketMessage("ticks"
+    , { 
+          {"ticks"        , QString("frx%1%2")
+                              .arg(ui->leTrendSymbolA->text())
+                              .arg(ui->leTrendSymbolB->text())}
+        , {"amount"       , QString::number(ui->sbTrendAmount->value())} 
+        , {"contract_type", ui->comboTrendContractType->currentText()}
+        , {"currency"     , ui->leTrendCurrency->text()}
+        , {"duration"     , QString::number(ui->sbTrendDuration->value())}
+        , {"duration_unit", ui->comboTrendDurationUnit->currentText()}
+        , {"symbolA"      , ui->leTrendSymbolA->text()}
+        , {"symbolB"      , ui->leTrendSymbolB->text()}
+    }), "Error on send ticks request", );
 }
 
 /* ==========================================================================
@@ -1865,7 +1874,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       , "Unable to insert trend on database", false);
     // store info
     sTrendInfo info;    
-    info.strQuote = "";
+    info.strContractType = "";
     info.i64ReqId = ui->sbReqIdSent->value();
     m_mapTrendId2Info.insert(m_i64LastIdTrend, info);
   }
@@ -2184,7 +2193,6 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Trend Info a req_id = %1")
             .arg(QString::number(i64ReqIdRecv))
           , false);
-        info.strQuote = msg__tick__quote;
         m_mapTrendId2Info.insert(i64Id, info);        
         /* Update trend on database */
         RETURN_IFW(!m_DbTrendUpdate({

@@ -78,7 +78,13 @@ public:
   };
 
   struct sTrendInfo {
-    QString strQuote;
+    QString strContractType;
+    QString strSymbA;
+    QString strSymbB;
+    QString strAmount;
+    QString strCurrency;
+    QString strValue;
+    QString strMargin;
     int64_t i64ReqId;
   };
 
