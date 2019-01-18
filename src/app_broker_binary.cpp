@@ -215,7 +215,6 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_i64SessionIdSelected {                  -1 }
 , m_i64TrendIdSelected   {                  -1 }
 , m_i64LastIdProposal    {                  -1 }
-, m_i64LastIdTrend       {                  -1 }
 {
   /* Set URL */
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
@@ -551,6 +550,9 @@ void CAppBrokerBinary::slotOnTrendStartClicked()
         , {"duration_unit", ui->comboTrendDurationUnit->currentText()}
         , {"symbolA"      , ui->leTrendSymbolA->text()}
         , {"symbolB"      , ui->leTrendSymbolB->text()}
+        , {"value"        , QString::number(ui->sbTrendValue->value())}
+        , {"margin"       , QString::number(ui->sbTrendMargin->value())}
+        , {"status"       , "START" }
     }), "Error on send ticks request", );
 }
 
@@ -563,10 +565,19 @@ void CAppBrokerBinary::slotOnTrendStartClicked()
  *         SUBORDINATES: None
  * ========================================================================== */
 void CAppBrokerBinary::slotOnTrendStopClicked()
-{
-  //TO BE IMPLEMENTED
+{  
+  sTrendInfo info;
+  RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
+    , QString("Cannot retrieve from Trend Info")
+    , );
+  info.strStatus = "STOP";
+  m_mapTrendId2Info.insert(m_i64TrendIdSelected, info);
+  /* Update trend on database */
+  RETURN_IFW(!m_DbTrendUpdate({
+          {"status", info.strStatus  }}
+      , m_i64TrendIdSelected)
+    , "Unable to update trend on database", );
 }
-
 
 /* ==========================================================================
  *        FUNCTION NAME: slotOnLookApply
@@ -653,16 +664,35 @@ void CAppBrokerBinary::slotOnItemSelectedProposal(const QItemSelection& sel
 void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
   , const QItemSelection&)
 {
-#if 0 //TO IMPL
+  ui->textDetails->setVisible(false);
+  ui->pbTrendStop->setEnabled(false);
+  m_i64TrendIdSelected = -1;
   if (!sel.isEmpty())
   {
     auto il = sel.indexes();
     if (!il.isEmpty()) {
       ui->textDetails->setVisible(true);
       m_DetailsUpdate(m_modelTrend, il.first().row());
+      QSqlRecord record = m_modelTrend.record(il.first().row());
+      m_i64TrendIdSelected = record.value("id").toLongLong();
+      ui->leTrendSymbolA->setText(record.value("symbolA").toString());
+      ui->leTrendSymbolB->setText(record.value("symbolB").toString());
+      ui->comboTrendContractType->setCurrentText(record.value("contract_type")
+        .toString());
+      ui->sbTrendAmount->setValue(record.value("amount").toFloat());
+      ui->leTrendCurrency->setText(record.value("currency").toString());
+      ui->sbTrendDuration->setValue(record.value("duration").toInt());
+      ui->comboTrendDurationUnit->setCurrentText(record.value("duration_unit")
+        .toString());
+      ui->sbTrendValue->setValue(record.value("value").toFloat());
+      ui->sbTrendMargin->setValue(record.value("margin").toFloat());
+      if (m_i64SessionId == record.value("session_id").toLongLong()) {
+        if ("START" == record.value("status")) {
+          ui->pbTrendStop->setEnabled(true);
+        }
+      }
     }    
   }
-#endif 
 }
 
 /* ==========================================================================
@@ -941,9 +971,11 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , symbolB text NOT NULL \
         , amount text NOT NULL \
         , currency text NOT NULL \
+        , duration text NOT NULL \
+        , duration_unit text NOT NULL \
         , value text NOT NULL \
-        , quote text \
         , margin text NOT NULL \
+        , quote text \
         , status text NOT NULL \
         , req_id int \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -971,7 +1003,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , req_id int \
         , proposal_id text \
         , contract_id text \
-        , trend_id \
+        , trend_id NOT NULL \
         , FOREIGN KEY(session_id) REFERENCES sessions(id) \
         , FOREIGN KEY(trend_id) REFERENCES trend(id))")
     , "Unable to create proposals table"
@@ -1114,7 +1146,8 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
   // Reload remuse prosals
   RETURN_IFW(!m_ProposalResumeUpdate(), "Unable to update resume proposals"
     , false);
-  return true;
+  // Reload Proposal for Trend selected
+  return m_DbTrendProposalsRelaod();
 }
 
 /* ==========================================================================
@@ -1127,6 +1160,7 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
  * ========================================================================== */
 bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
 {
+  ui->pbTrendStop->setEnabled(false);
   m_modelTrend.setQuery(
     QString("SELECT * from trend ORDER BY date_time DESC"));
   /* Hide columns first time */
@@ -1145,6 +1179,8 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     , {true ,true , 30} //symbolB
     , {true ,true , 30} //amount
     , {false,false}     //currency
+    , {false,false}     //duration
+    , {false,false}     //duration_unit
     , {true ,true }     //value
     , {true ,true }     //quote
     , {true ,true }     //margin
@@ -1327,8 +1363,8 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO proposals (\
         session_id, date_time, status, contract_type, symbolA, symbolB, amount\
-        , currency, req_id) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8',%9)")
+        , currency, req_id, trend_id) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8',%9,%10)")
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("status"))
@@ -1337,7 +1373,8 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
       .arg(mapValues.value("symbolB"))
       .arg(mapValues.value("amount"))
       .arg(mapValues.value("currency"))
-      .arg(mapValues.value("req_id")));
+      .arg(mapValues.value("req_id"))
+      .arg(mapValues.value("trend_id")));
   RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a proposal entry on database", i64Id);
   // Reload proposals
@@ -1406,8 +1443,9 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO trend (\
         session_id, date_time, contract_type, symbolA, symbolB, amount\
-        , currency, value, margin, status, req_id) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10',%11)")
+        , currency, duration, duration_unit, value, margin, status, req_id) \
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10','%11','%12',%13)"
+    )
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
       .arg(mapValues.value("contract_type"))
@@ -1415,6 +1453,8 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
       .arg(mapValues.value("symbolB"))
       .arg(mapValues.value("amount"))
       .arg(mapValues.value("currency"))
+      .arg(mapValues.value("duration"))
+      .arg(mapValues.value("duration_unit"))
       .arg(mapValues.value("value"))
       .arg(mapValues.value("margin"))
       .arg(mapValues.value("status"))
@@ -1439,7 +1479,7 @@ bool CAppBrokerBinary::m_DbTrendUpdate(const QMap<QString,QString>& mapValues
   , const int64_t& i64Id)
 {
   QString strSetValues;
-  for (auto strFieldName: mapValues.keys()) {
+  for (auto strFieldName: mapValues.keys()) {    
     strSetValues.append(QString("%1%2 = '%3'")
       .arg(strSetValues.isEmpty() ? "" : ", ")
       .arg(strFieldName)
@@ -1661,7 +1701,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
             , {"symbolB"      , strFrxB}
             , {"symbol"       , QString("frx%1%2").arg(strFrxA).arg(strFrxB)}
           })
-      , "Error on send proposal request", false);    
+      , "Error on send proposal request", false);
   }
   else if (strMsg == "NO") {
     // Early return without CATCH_ABORT (return true)
@@ -1691,26 +1731,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
       , QString("Id Proposal %1 not present on database")
         .arg(QString::number(m_i64LastIdProposal))
       , false);
-    /* retrieve info for mapped proposal*/
-    QString strContractType = m_mapProposalId2Info.value(m_i64LastIdProposal)
-      .strContractType;
-    QString strProposalId = m_mapProposalId2Info.value(m_i64LastIdProposal)
-      .strProposalId;
-    QString strPrice = m_mapProposalId2Info.value(m_i64LastIdProposal)
-      .strPrice;
     m_StatusUpdate(Status::kAUTHORIZED);
-    /* Update proposal on database */
-    RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, m_i64LastIdProposal)
-      , "Unable to update proposal on database", false);
-    /* reset last proposal: all next queries pass by map */
-    m_i64LastIdProposal = -1;    
-    // buy
-    RETURN_IFW_WDG(!m_SendSocketMessage("buy"
-        , { 
-              {"buy"  , strProposalId} 
-            , {"price", strPrice}
-          })
-      , "Error on send proposal request", false);    
+    RETURN_IFW_WDG(!m_ProposalGO(), "Error on place proposal", false);
   }  
   else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
     // Update status_tbot on database
@@ -1810,7 +1832,10 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     m_i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
     RETURN_IFW(-1 == m_i64LastIdProposal
       , "Unable to insert proposal on database", false);
-    m_listSentProposals.append(m_i64LastIdProposal);
+    int64_t i64TredId = mapValues.value("trend_id").toLong();
+    if (0 == i64TredId) {
+      m_listSentProposals.append(m_i64LastIdProposal);
+    }
     // store contract_type and price to send buy fro CALL or PUT request
     sProposalInfo info;
     info.strProposalId = "";
@@ -1820,6 +1845,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.strStatus = "";
     info.i64CountDown = 0;
     info.i64ReqId = ui->sbReqIdSent->value();
+    info.i64TrendId = i64TredId;
     m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
   }
   else if ("buy" == strMsgType)
@@ -1866,17 +1892,25 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(ui->sbReqIdSent->value());
     /* Insert trend on database */
     QMap<QString, QString> mapValuesDbInsert = mapValues;
-    mapValuesDbInsert.insert("status", "START");
     mapValuesDbInsert.insert("req_id"
       , QString::number(ui->sbReqIdSent->value()));
-    m_i64LastIdTrend = m_DbTrendInsert(mapValuesDbInsert);
-    RETURN_IFW(-1 == m_i64LastIdTrend
+    m_i64TrendIdSelected = m_DbTrendInsert(mapValuesDbInsert);
+    RETURN_IFW(-1 == m_i64TrendIdSelected
       , "Unable to insert trend on database", false);
     // store info
-    sTrendInfo info;    
-    info.strContractType = "";
+    sTrendInfo info;
+    info.strContractType = mapValuesDbInsert.value("contract_type");
+    info.strAmount = mapValuesDbInsert.value("amount");
+    info.strCurrency = mapValuesDbInsert.value("currency");
+    info.strDuration = mapValuesDbInsert.value("duration");
+    info.strDurationUnit = mapValuesDbInsert.value("duration_unit");
+    info.strSymbolA = mapValuesDbInsert.value("symbolA");
+    info.strSymbolB = mapValuesDbInsert.value("symbolB");
+    info.strValue = mapValuesDbInsert.value("value");
+    info.strMargin = mapValuesDbInsert.value("margin");
+    info.strStatus = mapValuesDbInsert.value("status");
     info.i64ReqId = ui->sbReqIdSent->value();
-    m_mapTrendId2Info.insert(m_i64LastIdTrend, info);
+    m_mapTrendId2Info.insert(m_i64TrendIdSelected, info);
   }
   else {
     RETURN_IFC_WDG(true, QString("Message type %1 is unrecognized")
@@ -2043,8 +2077,13 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
               {{"status", "proposal recv"},{"proposal_id",msg__proposal__id}}
             , m_i64LastIdProposal)
           , "Unable to update proposal on database", false);
-        /* Update Status: WAIT FOR CONFIRM */
-        m_StatusUpdate(Status::kWAITFORCON);
+        if (0 != info.i64TrendId) {
+          RETURN_IFW_WDG(!m_ProposalGO(), "Error on place proposal", false);
+        }
+        else {
+          /* Update Status: WAIT FOR CONFIRM */
+          m_StatusUpdate(Status::kWAITFORCON);
+        }
       }
       else if ("buy" == strMsgType)
       { /* Buy wait feedback */
@@ -2193,12 +2232,46 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , QString("Cannot retrieve from Trend Info a req_id = %1")
             .arg(QString::number(i64ReqIdRecv))
           , false);
-        m_mapTrendId2Info.insert(i64Id, info);        
+        //Return if different to START
+        RETURN_IF("START" != info.strStatus, true);
+        float f32Quote = msg__tick__quote.toFloat();
+        float f32Value = info.strValue.toFloat();        
+        float f32Margin = info.strMargin.toFloat();
+        if      ("CALL" == info.strContractType) {
+          if (f32Quote - f32Margin <= f32Value) {
+            info.strStatus = "GO";
+          }
+        }
+        else if ("PUT" == info.strContractType) {
+          if (f32Quote + f32Margin >= f32Value) {
+            info.strStatus = "GO";
+          }
+        }
+        m_mapTrendId2Info.insert(i64Id, info);
         /* Update trend on database */
         RETURN_IFW(!m_DbTrendUpdate({
-              {"quote", msg__tick__quote}}
+                {"quote" , msg__tick__quote}
+              , {"status", info.strStatus  }}
             , i64Id)
           , "Unable to update trend on database", false);
+        if ("GO" == info.strStatus) {
+          // proposal
+          RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
+              , { 
+                    {"amount"       , info.strAmount} 
+                  , {"contract_type", info.strContractType}
+                  , {"currency"     , info.strCurrency}
+                  , {"duration"     , info.strDuration}
+                  , {"duration_unit", info.strDurationUnit}
+                  , {"symbolA"      , info.strSymbolA}
+                  , {"symbolB"      , info.strSymbolB}
+                  , {"symbol"       , QString("frx%1%2")
+                                        .arg(info.strSymbolA)
+                                        .arg(info.strSymbolB)}
+                  , {"trend_id"     , QString::number(i64Id)}
+                })
+            , "Error on send proposal request", false);
+        }
       }
     }
   }
@@ -2482,4 +2555,36 @@ void CAppBrokerBinary::m_DetailsUpdate(const QSqlQueryModel& model, int row)
       .arg(record.fieldName(i)).arg(record.value(i).toString()));
   }
   ui->textDetails->setText(strDetails);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_ProposalGO
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190118
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+bool CAppBrokerBinary::m_ProposalGO()
+{
+  /* retrieve info for mapped proposal*/
+  QString strContractType = m_mapProposalId2Info.value(m_i64LastIdProposal)
+    .strContractType;
+  QString strProposalId = m_mapProposalId2Info.value(m_i64LastIdProposal)
+    .strProposalId;
+  QString strPrice = m_mapProposalId2Info.value(m_i64LastIdProposal)
+    .strPrice;
+  /* Update proposal on database */
+  RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, m_i64LastIdProposal)
+    , "Unable to update proposal on database", false);
+  /* reset last proposal: all next queries pass by map */
+  m_i64LastIdProposal = -1;    
+  // buy
+  RETURN_IFW_WDG(!m_SendSocketMessage("buy"
+      , { 
+            {"buy"  , strProposalId} 
+          , {"price", strPrice}
+        })
+    , "Error on send proposal request", false);
+  return true;
 }

@@ -532,6 +532,9 @@
          <property name="inputMask">
           <string/>
          </property>
+         <property name="text">
+          <string>EUR</string>
+         </property>
          <property name="maxLength">
           <number>3</number>
          </property>
@@ -542,6 +545,9 @@
        </item>
        <item row="0" column="2">
         <widget class="QComboBox" name="comboTrendContractType">
+         <property name="currentText">
+          <string>PUT</string>
+         </property>
          <item>
           <property name="text">
            <string>CALL</string>
@@ -561,6 +567,9 @@
          </property>
          <property name="maximum">
           <double>100000.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>1.000000000000000</double>
          </property>
         </widget>
        </item>
@@ -597,6 +606,9 @@
          <property name="inputMask">
           <string/>
          </property>
+         <property name="text">
+          <string>USD</string>
+         </property>
          <property name="maxLength">
           <number>3</number>
          </property>
@@ -632,6 +644,36 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>comboSession</tabstop>
+  <tabstop>leSession</tabstop>
+  <tabstop>pbClearSession</tabstop>
+  <tabstop>cbLookApply</tabstop>
+  <tabstop>pbBalance</tabstop>
+  <tabstop>leTrendSymbolA</tabstop>
+  <tabstop>leTrendSymbolB</tabstop>
+  <tabstop>comboTrendContractType</tabstop>
+  <tabstop>sbTrendAmount</tabstop>
+  <tabstop>leTrendCurrency</tabstop>
+  <tabstop>sbTrendDuration</tabstop>
+  <tabstop>comboTrendDurationUnit</tabstop>
+  <tabstop>sbTrendValue</tabstop>
+  <tabstop>sbTrendMargin</tabstop>
+  <tabstop>pbTrendStart</tabstop>
+  <tabstop>pbTrendStop</tabstop>
+  <tabstop>tbTrendProposals</tabstop>
+  <tabstop>tabMain</tabstop>
+  <tabstop>comboProposals</tabstop>
+  <tabstop>tbProposals</tabstop>
+  <tabstop>textDetails</tabstop>
+  <tabstop>sbPingSent</tabstop>
+  <tabstop>sbPongRecv</tabstop>
+  <tabstop>sbReqIdSent</tabstop>
+  <tabstop>sbReqIdRecv</tabstop>
+  <tabstop>dsbProposal</tabstop>
+  <tabstop>tbHistory</tabstop>
+  <tabstop>tbTrend</tabstop>
+ </tabstops>
  <resources>
   <include location="../BrokerTelegramBot.qrc"/>
  </resources>

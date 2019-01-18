@@ -75,16 +75,20 @@ public:
     QString strStatus;
     int64_t i64CountDown;
     int64_t i64ReqId;
+    int64_t i64TrendId;
   };
 
   struct sTrendInfo {
     QString strContractType;
-    QString strSymbA;
-    QString strSymbB;
+    QString strSymbolA;
+    QString strSymbolB;
     QString strAmount;
     QString strCurrency;
+    QString strDuration;
+    QString strDurationUnit;
     QString strValue;
     QString strMargin;
+    QString strStatus;
     int64_t i64ReqId;
   };
 
@@ -162,7 +166,6 @@ private:
   QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
   QList<int64_t> m_listSentProposals;
 
-  int64_t m_i64LastIdTrend;
   QMap<int64_t,sTrendInfo> m_mapTrendId2Info;
 
   void m_StatusUpdate(Status);
@@ -200,6 +203,7 @@ private:
   int64_t m_i64IdTrendByInfo(const QString&, const QString&, sTrendInfo&);
   bool m_ProposalResumeUpdate();
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
+  bool m_ProposalGO();
 };
 
 #endif // APP_BROKER_BINARY_H
