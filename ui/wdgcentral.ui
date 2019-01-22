@@ -168,28 +168,6 @@
      </item>
     </layout>
    </item>
-   <item row="2" column="0">
-    <widget class="QTextEdit" name="textDetails"/>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="lblInfo">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="styleSheet">
-      <string notr="true">QLabel{background-color:black;}</string>
-     </property>
-     <property name="text">
-      <string>Ready.</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
-   </item>
    <item row="1" column="0">
     <widget class="QTabWidget" name="tabMain">
      <property name="currentIndex">
@@ -424,223 +402,408 @@
       <attribute name="title">
        <string>Trend</string>
       </attribute>
-      <layout class="QGridLayout" name="gridLayout_4">
-       <property name="leftMargin">
-        <number>0</number>
+      <widget class="QSplitter" name="splitter">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>66</y>
+         <width>712</width>
+         <height>306</height>
+        </rect>
        </property>
-       <property name="topMargin">
-        <number>0</number>
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
        </property>
-       <property name="rightMargin">
-        <number>0</number>
+       <widget class="QTableView" name="tbTrend"/>
+       <widget class="QTableView" name="tbTrendProposals"/>
+      </widget>
+      <widget class="QWidget" name="">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>35</y>
+         <width>721</width>
+         <height>25</height>
+        </rect>
        </property>
-       <property name="bottomMargin">
-        <number>0</number>
-       </property>
-       <property name="spacing">
-        <number>2</number>
-       </property>
-       <item row="0" column="11">
-        <widget class="QPushButton" name="pbTrendStop">
-         <property name="text">
-          <string>STOP</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0" colspan="12">
-        <widget class="QSplitter" name="splitter">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <widget class="QTableView" name="tbTrend"/>
-         <widget class="QTableView" name="tbTrendProposals"/>
-        </widget>
-       </item>
-       <item row="0" column="9">
-        <spacer name="horizontalSpacer_5">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item row="0" column="10">
-        <widget class="QPushButton" name="pbTrendStart">
-         <property name="text">
-          <string>START</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="3">
-        <widget class="QSpinBox" name="sbTrendAmount">
-         <property name="maximum">
-          <number>9999</number>
-         </property>
-         <property name="value">
-          <number>1</number>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="4">
-        <widget class="QLineEdit" name="leTrendCurrency">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>30</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>USD</string>
-         </property>
-         <property name="placeholderText">
-          <string>USD</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="5">
-        <widget class="QSpinBox" name="sbTrendDuration">
-         <property name="value">
-          <number>5</number>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QLineEdit" name="leTrendSymbolA">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>30</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="inputMask">
-          <string/>
-         </property>
-         <property name="text">
-          <string>EUR</string>
-         </property>
-         <property name="maxLength">
-          <number>3</number>
-         </property>
-         <property name="placeholderText">
-          <string>EUR</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="2">
-        <widget class="QComboBox" name="comboTrendContractType">
-         <property name="currentText">
-          <string>PUT</string>
-         </property>
-         <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <property name="spacing">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QSpinBox" name="sbTrendAmount">
+          <property name="maximum">
+           <number>9999</number>
+          </property>
+          <property name="value">
+           <number>1</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="leTrendCurrency">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>30</width>
+            <height>16777215</height>
+           </size>
+          </property>
           <property name="text">
+           <string>USD</string>
+          </property>
+          <property name="placeholderText">
+           <string>USD</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="sbTrendDuration">
+          <property name="value">
+           <number>5</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboTrendDurationUnit">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>40</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>m</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_6">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pbTrendStart">
+          <property name="text">
+           <string>START</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pbTrendStop">
+          <property name="text">
+           <string>STOP</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>10</y>
+         <width>803</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <property name="spacing">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QComboBox" name="comboTrendType">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>TIME</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>PRICE</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboTrendSymbolA">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>45</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>EUR</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>GBP</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>USD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>NZD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>JPY</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>CAD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>CHF</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboTrendSymbolB">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>45</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="currentText">
+           <string>USD</string>
+          </property>
+          <item>
+           <property name="text">
+            <string>EUR</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>GBP</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>USD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>NZD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>JPY</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>CAD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>AUD</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>CHF</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboTrendContractType">
+          <property name="currentText">
            <string>CALL</string>
           </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>PUT</string>
+          <item>
+           <property name="text">
+            <string>CALL</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>PUT</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="sbTrendValue">
+          <property name="decimals">
+           <number>5</number>
           </property>
-         </item>
-        </widget>
-       </item>
-       <item row="0" column="7">
-        <widget class="QDoubleSpinBox" name="sbTrendValue">
-         <property name="decimals">
-          <number>5</number>
-         </property>
-         <property name="maximum">
-          <double>100000.000000000000000</double>
-         </property>
-         <property name="value">
-          <double>1.000000000000000</double>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="8">
-        <widget class="QDoubleSpinBox" name="sbTrendMargin">
-         <property name="decimals">
-          <number>5</number>
-         </property>
-         <property name="maximum">
-          <double>1000.000000000000000</double>
-         </property>
-         <property name="singleStep">
-          <double>0.000010000000000</double>
-         </property>
-         <property name="value">
-          <double>0.000000000000000</double>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLineEdit" name="leTrendSymbolB">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>30</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="inputMask">
-          <string/>
-         </property>
-         <property name="text">
-          <string>USD</string>
-         </property>
-         <property name="maxLength">
-          <number>3</number>
-         </property>
-         <property name="placeholderText">
-          <string>USD</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="6">
-        <widget class="QComboBox" name="comboTrendDurationUnit">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>40</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <item>
-          <property name="text">
-           <string>m</string>
+          <property name="maximum">
+           <double>100000.000000000000000</double>
           </property>
-         </item>
-        </widget>
-       </item>
-      </layout>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDateTimeEdit" name="dtTrendStart">
+          <property name="displayFormat">
+           <string>yyyy-MM-dd hh:mm</string>
+          </property>
+          <property name="calendarPopup">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="sbTrendValueStart">
+          <property name="decimals">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <double>100000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDateTimeEdit" name="dtTrendStop">
+          <property name="displayFormat">
+           <string>yyyy-MM-dd hh:mm</string>
+          </property>
+          <property name="calendarPopup">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="sbTrendValueStop">
+          <property name="decimals">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <double>100000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_5">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="sbTrendMargin">
+          <property name="decimals">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <double>1000.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.000010000000000</double>
+          </property>
+          <property name="value">
+           <double>0.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="lblInfo">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QLabel{background-color:black;}</string>
+     </property>
+     <property name="text">
+      <string>Ready.</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QTextEdit" name="textDetails"/>
    </item>
   </layout>
  </widget>
@@ -650,17 +813,8 @@
   <tabstop>pbClearSession</tabstop>
   <tabstop>cbLookApply</tabstop>
   <tabstop>pbBalance</tabstop>
-  <tabstop>leTrendSymbolA</tabstop>
-  <tabstop>leTrendSymbolB</tabstop>
   <tabstop>comboTrendContractType</tabstop>
-  <tabstop>sbTrendAmount</tabstop>
-  <tabstop>leTrendCurrency</tabstop>
-  <tabstop>sbTrendDuration</tabstop>
-  <tabstop>comboTrendDurationUnit</tabstop>
-  <tabstop>sbTrendValue</tabstop>
-  <tabstop>sbTrendMargin</tabstop>
-  <tabstop>pbTrendStart</tabstop>
-  <tabstop>pbTrendStop</tabstop>
+  <tabstop>sbTrendValueStart</tabstop>
   <tabstop>tbTrendProposals</tabstop>
   <tabstop>tabMain</tabstop>
   <tabstop>comboProposals</tabstop>

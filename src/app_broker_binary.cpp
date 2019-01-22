@@ -37,6 +37,7 @@
 #define APP_DEBUG 1
 #define APP_BROKER_BINARY_TIMEOUT_MS  10000
 #define APP_BROKER_BINARY_RECV_TICK   3
+#define APP_BROKER_BINARY_TREND_TICK  30
 
 /**
  * Calls the wdg/message handler with the debug function/message.
@@ -272,6 +273,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->comboProposals
     , SIGNAL(currentTextChanged(const QString&))
     , SLOT(slotOnComboProposalsCurrentTextChanged(const QString&)));
+  connect(ui->comboTrendContractType
+    , SIGNAL(currentTextChanged(const QString&))
+    , SLOT(slotOnComboTrendTypeCurrentTextChanged(const QString&)));
   connect(ui->pbClearSession
     , SIGNAL(clicked())
     , SLOT(slotOnClearSessionClicked()));  
@@ -317,6 +321,11 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   /* Initialize proposal */
   ui->dsbProposal->setValue(
     CAppConfiguration::GetInstance().get("proposal", "1.0").toDouble());
+
+  /* Initialize Trend Status */
+  ui->dtTrendStart->setDateTime(QDateTime::currentDateTime());
+  ui->dtTrendStop->setDateTime(QDateTime::currentDateTime());
+  slotOnComboTrendTypeCurrentTextChanged(ui->comboTrendType->currentText());
 
   /* Update Status: INITIALIZE */
   m_StatusUpdate(Status::kINITIALIZE);
@@ -510,6 +519,33 @@ void CAppBrokerBinary::slotOnComboProposalsCurrentTextChanged(
 }
 
 /* ==========================================================================
+ *        FUNCTION NAME: slotOnComboTrendTypeCurrentTextChanged
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190122
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnComboTrendTypeCurrentTextChanged(
+  const QString& strSelectedTrendType)
+{
+  if      ("TIME"  == strSelectedTrendType) {
+    ui->sbTrendValue->setVisible(false);
+    ui->sbTrendValueStart->setVisible(true);
+    ui->sbTrendValueStop->setVisible(true);
+    ui->dtTrendStart->setVisible(true);
+    ui->dtTrendStop->setVisible(true);
+  }
+  else if ("PRICE" == strSelectedTrendType) {
+    ui->sbTrendValue->setVisible(true);
+    ui->sbTrendValueStart->setVisible(false);
+    ui->sbTrendValueStop->setVisible(false);
+    ui->dtTrendStart->setVisible(false);
+    ui->dtTrendStop->setVisible(false);
+  }
+}
+
+/* ==========================================================================
  *        FUNCTION NAME: slotOnClearSessionClicked
  * FUNCTION DESCRIPTION: 
  *        CREATION DATE: 20181031
@@ -538,22 +574,48 @@ void CAppBrokerBinary::slotOnClearSessionClicked()
 void CAppBrokerBinary::slotOnTrendStartClicked()
 {
   // ticks
-  RETURN_IFC_WDG(!m_SendSocketMessage("ticks"
-    , { 
-          {"ticks"        , QString("frx%1%2")
-                              .arg(ui->leTrendSymbolA->text())
-                              .arg(ui->leTrendSymbolB->text())}
-        , {"amount"       , QString::number(ui->sbTrendAmount->value())} 
-        , {"contract_type", ui->comboTrendContractType->currentText()}
-        , {"currency"     , ui->leTrendCurrency->text()}
-        , {"duration"     , QString::number(ui->sbTrendDuration->value())}
-        , {"duration_unit", ui->comboTrendDurationUnit->currentText()}
-        , {"symbolA"      , ui->leTrendSymbolA->text()}
-        , {"symbolB"      , ui->leTrendSymbolB->text()}
-        , {"value"        , QString::number(ui->sbTrendValue->value())}
-        , {"margin"       , QString::number(ui->sbTrendMargin->value())}
-        , {"status"       , "START" }
-    }), "Error on send ticks request", );
+  if      ("TIME"  == ui->comboTrendType->currentText()) {
+    RETURN_IFC_WDG(!m_SendSocketMessage("ticks"
+      , { 
+            {"ticks"          , QString("frx%1%2")
+                                  .arg(ui->comboTrendSymbolA->currentText())
+                                  .arg(ui->comboTrendSymbolB->currentText())}
+          , {"amount"         , QString::number(ui->sbTrendAmount->value())} 
+          , {"contract_type"  , ui->comboTrendContractType->currentText()}
+          , {"currency"       , ui->leTrendCurrency->text()}
+          , {"duration"       , QString::number(ui->sbTrendDuration->value())}
+          , {"duration_unit"  , ui->comboTrendDurationUnit->currentText()}
+          , {"symbolA"        , ui->comboTrendSymbolA->currentText()}
+          , {"symbolB"        , ui->comboTrendSymbolB->currentText()}
+          , {"trend_type"     , ui->comboTrendType->currentText()}
+          , {"value_start"    , QString::number(ui->sbTrendValueStart->value())}
+          , {"value_stop"     , QString::number(ui->sbTrendValueStop->value())}
+          , {"date_time_start", ui->dtTrendStart->text()}
+          , {"date_time_stop" , ui->dtTrendStop->text()}
+          , {"margin"         , QString::number(ui->sbTrendMargin->value())}
+          , {"status"         , "START" }
+      }), "Error on send ticks request", );
+
+  }
+  else if ("PRICE" == ui->comboTrendType->currentText()) {
+    RETURN_IFC_WDG(!m_SendSocketMessage("ticks"
+      , { 
+            {"ticks"          , QString("frx%1%2")
+                                  .arg(ui->comboTrendSymbolA->currentText())
+                                  .arg(ui->comboTrendSymbolB->currentText())}
+          , {"amount"         , QString::number(ui->sbTrendAmount->value())} 
+          , {"contract_type"  , ui->comboTrendContractType->currentText()}
+          , {"currency"       , ui->leTrendCurrency->text()}
+          , {"duration"       , QString::number(ui->sbTrendDuration->value())}
+          , {"duration_unit"  , ui->comboTrendDurationUnit->currentText()}
+          , {"symbolA"        , ui->comboTrendSymbolA->currentText()}
+          , {"symbolB"        , ui->comboTrendSymbolB->currentText()}
+          , {"trend_type"     , ui->comboTrendType->currentText()}
+          , {"value"          , QString::number(ui->sbTrendValue->value())}
+          , {"margin"         , QString::number(ui->sbTrendMargin->value())}
+          , {"status"         , "START" }
+      }), "Error on send ticks request", );
+  }  
 }
 
 /* ==========================================================================
@@ -675,8 +737,8 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       m_DetailsUpdate(m_modelTrend, il.first().row());
       QSqlRecord record = m_modelTrend.record(il.first().row());
       m_i64TrendIdSelected = record.value("id").toLongLong();
-      ui->leTrendSymbolA->setText(record.value("symbolA").toString());
-      ui->leTrendSymbolB->setText(record.value("symbolB").toString());
+      ui->comboTrendSymbolA->setCurrentText(record.value("symbolA").toString());
+      ui->comboTrendSymbolB->setCurrentText(record.value("symbolB").toString());
       ui->comboTrendContractType->setCurrentText(record.value("contract_type")
         .toString());
       ui->sbTrendAmount->setValue(record.value("amount").toFloat());
@@ -684,7 +746,7 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       ui->sbTrendDuration->setValue(record.value("duration").toInt());
       ui->comboTrendDurationUnit->setCurrentText(record.value("duration_unit")
         .toString());
-      ui->sbTrendValue->setValue(record.value("value").toFloat());
+      ui->sbTrendValueStart->setValue(record.value("value").toFloat());
       ui->sbTrendMargin->setValue(record.value("margin").toFloat());
       if (m_i64SessionId == record.value("session_id").toLongLong()) {
         if ("START" == record.value("status")) {
@@ -973,9 +1035,15 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , currency text NOT NULL \
         , duration text NOT NULL \
         , duration_unit text NOT NULL \
+        , trend_type text NOT NULL \
         , value text NOT NULL \
+        , value_start text NOT NULL \
+        , value_stop text NOT NULL \
+        , date_time_start text NOT NULL \
+        , date_time_stop text NOT NULL \
         , margin text NOT NULL \
         , quote text \
+        , date_time_epoch text \
         , status text NOT NULL \
         , req_id int \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
@@ -1181,8 +1249,14 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     , {false,false}     //currency
     , {false,false}     //duration
     , {false,false}     //duration_unit
+    , {true ,true }     //trend_type
     , {true ,true }     //value
+    , {true ,true }     //value_start
+    , {true ,true }     //value_stop
+    , {true ,true }     //date_time_start
+    , {true ,true }     //date_time_stop
     , {true ,true }     //quote
+    , {true ,true }     //date_time_epoch
     , {true ,true }     //margin
     , {true ,true }     //status
     , {false,false}     //req_id
@@ -1443,8 +1517,10 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
   int64_t i64Id = CAppDatabase::GetInstance().execInsertQuery(QString(
       "INSERT INTO trend (\
         session_id, date_time, contract_type, symbolA, symbolB, amount\
-        , currency, duration, duration_unit, value, margin, status, req_id) \
-      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10','%11','%12',%13)"
+        , currency, duration, duration_unit, trend_type, value, value_start\
+        , value_stop, date_time_start, date_time_stop, margin, status, req_id)\
+      VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10','%11','%12'\
+        ,'%13','%14','%15','%16','%17',%18)"
     )
       .arg(m_i64SessionId)
       .arg(CurrentDateTime())
@@ -1455,7 +1531,12 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
       .arg(mapValues.value("currency"))
       .arg(mapValues.value("duration"))
       .arg(mapValues.value("duration_unit"))
+      .arg(mapValues.value("trend_type"))
       .arg(mapValues.value("value"))
+      .arg(mapValues.value("value_start"))
+      .arg(mapValues.value("value_stop"))
+      .arg(mapValues.value("date_time_start"))
+      .arg(mapValues.value("date_time_stop"))
       .arg(mapValues.value("margin"))
       .arg(mapValues.value("status"))
       .arg(mapValues.value("req_id")));
@@ -1906,7 +1987,12 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.strDurationUnit = mapValuesDbInsert.value("duration_unit");
     info.strSymbolA = mapValuesDbInsert.value("symbolA");
     info.strSymbolB = mapValuesDbInsert.value("symbolB");
+    info.strTrendType = mapValuesDbInsert.value("trend_type");
     info.strValue = mapValuesDbInsert.value("value");
+    info.strValueStart = mapValuesDbInsert.value("value_start");
+    info.strValueStop = mapValuesDbInsert.value("value_stop");
+    info.strDateTimeStart = mapValuesDbInsert.value("date_time_start");
+    info.strDateTimeStop = mapValuesDbInsert.value("date_time_stop");    
     info.strMargin = mapValuesDbInsert.value("margin");
     info.strStatus = mapValuesDbInsert.value("status");
     info.i64ReqId = ui->sbReqIdSent->value();
@@ -2225,6 +2311,11 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , "quote"
           , msg__tick__quote)
           , "JSonValue 'quote' doesn't exist", false);
+        QString msg__tick__epoch;
+        RETURN_IFW_WDG(!m_JSonValueStr(msg__tick
+          , "epoch"
+          , msg__tick__epoch)
+          , "JSonValue 'epoch' doesn't exist", false);
         sTrendInfo info;
         int i64Id = m_i64IdTrendByInfo("req_id"
           , QString::number(i64ReqIdRecv), info);
@@ -2233,28 +2324,41 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
             .arg(QString::number(i64ReqIdRecv))
           , false);
         //Return if different to START
-        RETURN_IF("START" != info.strStatus, true);
-        float f32Quote = msg__tick__quote.toFloat();
-        float f32Value = info.strValue.toFloat();        
+        RETURN_IF(!info.strStatus.startsWith("START"), true);
+        static int iCntFilter = APP_BROKER_BINARY_TREND_TICK;
+        info.strQuote = msg__tick__quote;
+        info.strEpoch = QDateTime::fromSecsSinceEpoch(
+          msg__tick__epoch.toLongLong()).toString("yyyy-MM-dd hh:mm");
+        float f32Quote = info.strQuote.toFloat();
+        float f32Value = m_ValueTrend(info);        
         float f32Margin = info.strMargin.toFloat();
-        if      ("CALL" == info.strContractType) {
-          if (f32Quote - f32Margin <= f32Value) {
-            info.strStatus = "GO";
+        if  ((("CALL" == info.strContractType) && 
+              (f32Quote - f32Margin <= f32Value)) ||
+             (("PUT" == info.strContractType)  &&
+              (f32Quote + f32Margin >= f32Value)))
+        {
+          if (("TIME" != info.strTrendType) || (--iCntFilter <= 0)) {
+            info.strStatus = "START&GO";
+            iCntFilter = APP_BROKER_BINARY_TREND_TICK;
           }
+          else {
+            info.strStatus = "START";
+          }          
         }
-        else if ("PUT" == info.strContractType) {
-          if (f32Quote + f32Margin >= f32Value) {
-            info.strStatus = "GO";
-          }
+        else {
+          info.strStatus = "START";
+          iCntFilter = 0;
         }
         m_mapTrendId2Info.insert(i64Id, info);
         /* Update trend on database */
         RETURN_IFW(!m_DbTrendUpdate({
-                {"quote" , msg__tick__quote}
-              , {"status", info.strStatus  }}
+                {"quote"          , info.strQuote}
+              , {"value"          , QString::number(f32Value)}
+              , {"date_time_epoch", info.strEpoch}
+              , {"status"         , info.strStatus}}
             , i64Id)
           , "Unable to update trend on database", false);
-        if ("GO" == info.strStatus) {
+        if (info.strStatus.endsWith("GO")) {
           // proposal
           RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
               , { 
@@ -2587,4 +2691,31 @@ bool CAppBrokerBinary::m_ProposalGO()
         })
     , "Error on send proposal request", false);
   return true;
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_ValueTrend
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190122
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+float CAppBrokerBinary::m_ValueTrend(sTrendInfo& info)
+{
+  if ("TIME" == info.strTrendType) {
+    uint64_t u64SecStart = QDateTime::fromString(info.strDateTimeStart
+      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+    uint64_t u64SecStop = QDateTime::fromString(info.strDateTimeStop
+      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+    uint64_t u64DiffSecTime = u64SecStop - u64SecStart;
+    float f32DiffValue = fabs(info.strValueStop.toFloat() 
+      - info.strValueStart.toFloat());
+    float f32Tick = f32DiffValue / u64DiffSecTime;
+    uint64_t u64SecEpoch = QDateTime::fromString(info.strEpoch
+      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+    float f32Value = (u64SecEpoch - u64SecStart) * f32Tick;
+    info.strValue = QString::number(f32Value);
+  }
+  return info.strValue.toFloat();
 }

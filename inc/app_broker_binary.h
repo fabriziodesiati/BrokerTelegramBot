@@ -79,6 +79,7 @@ public:
   };
 
   struct sTrendInfo {
+    QString strTrendType;
     QString strContractType;
     QString strSymbolA;
     QString strSymbolB;
@@ -86,8 +87,14 @@ public:
     QString strCurrency;
     QString strDuration;
     QString strDurationUnit;
-    QString strValue;
+    QString strValueStart;
+    QString strValueStop;
+    QString strDateTimeStart;
+    QString strDateTimeStop;
     QString strMargin;
+    QString strQuote;
+    QString strValue;
+    QString strEpoch;
     QString strStatus;
     int64_t i64ReqId;
   };
@@ -120,9 +127,10 @@ public slots:
   void slotOnMessageTelegramBot(Telegram::Message);
   void slotOnComboSessionsCurrentTextChanged(const QString&);
   void slotOnComboProposalsCurrentTextChanged(const QString&);
+  void slotOnComboTrendTypeCurrentTextChanged(const QString&);
   void slotOnClearSessionClicked();
   void slotOnLookApply(const QString&);
-  void slotOnBalanceClicked();
+  void slotOnBalanceClicked();  
   void slotOnTrendStartClicked();
   void slotOnTrendStopClicked();
   void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
@@ -204,6 +212,7 @@ private:
   bool m_ProposalResumeUpdate();
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
   bool m_ProposalGO();
+  float m_ValueTrend(sTrendInfo&);
 };
 
 #endif // APP_BROKER_BINARY_H
