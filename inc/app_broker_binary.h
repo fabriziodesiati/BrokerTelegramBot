@@ -79,8 +79,13 @@ public:
   };
 
   struct sTrendInfo {
-    QString strTrendType;
+    QString strStatus;
+    QString strTrendType;    
     QString strContractType;
+    QString strEpoch;
+    QString strValue;
+    QString strQuote;
+    QString strDifference;
     QString strSymbolA;
     QString strSymbolB;
     QString strAmount;
@@ -91,12 +96,9 @@ public:
     QString strValueStop;
     QString strDateTimeStart;
     QString strDateTimeStop;
-    QString strMargin;
-    QString strQuote;
-    QString strValue;
-    QString strEpoch;
-    QString strStatus;
+    QString strMargin;    
     int64_t i64ReqId;
+    QString strForget;
   };
 
   static QString CurrentDateTime();
@@ -152,7 +154,7 @@ private:
   CWdgCentral m_wdgCentral;
   CAppModelHistory m_modelHistory;
   CAppModelProposals m_modelProposals;
-  CAppModelProposals m_modelTrend;
+  QSqlQueryModel m_modelTrend;
   CAppModelProposals m_modelTrendProposals;
   
   QUrl m_url;
