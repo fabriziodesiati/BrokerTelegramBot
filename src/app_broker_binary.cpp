@@ -1071,7 +1071,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , req_id int \
         , proposal_id text \
         , contract_id text \
-        , trend_id NOT NULL \
+        , trend_id \
         , FOREIGN KEY(session_id) REFERENCES sessions(id) \
         , FOREIGN KEY(trend_id) REFERENCES trend(id))")
     , "Unable to create proposals table"
@@ -1448,7 +1448,7 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
       .arg(mapValues.value("amount"))
       .arg(mapValues.value("currency"))
       .arg(mapValues.value("req_id"))
-      .arg(mapValues.value("trend_id")));
+      .arg(mapValues.value("trend_id","NULL")));
   RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a proposal entry on database", i64Id);
   // Reload proposals
