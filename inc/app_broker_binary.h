@@ -167,6 +167,7 @@ private:
 
   bool m_bSocketOpened;
   bool m_bFirstAuthorized;
+  bool m_bDisableTrendControls;
   QString m_strBalanceStart;
   int64_t m_i64SessionId;
   int64_t m_i64SessionIdSelected;

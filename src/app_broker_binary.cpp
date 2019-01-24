@@ -216,6 +216,7 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_strTokenBot          {            tokenBot }
 , m_bSocketOpened        {               false }
 , m_bFirstAuthorized     {                true }
+, m_bDisableTrendControls{               false }
 , m_strBalanceStart      {                  "" }
 , m_i64SessionId         {                  -1 }
 , m_i64SessionIdSelected {                  -1 }
@@ -749,6 +750,7 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       m_DetailsUpdate(m_modelTrend, il.first().row());
       QSqlRecord record = m_modelTrend.record(il.first().row());
       m_i64TrendIdSelected = record.value("id").toLongLong();
+      RETURN_IF(m_bDisableTrendControls, );
       ui->comboTrendType->setCurrentText(record.value("trend_type").toString());
       ui->sbTrendValue->setValue(record.value("value").toFloat());
       ui->sbTrendValueStart->setValue(record.value("value_start").toFloat());
@@ -1322,7 +1324,9 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
   }
   //Reselect trend
   if (-1 != iSelRow) {
+    m_bDisableTrendControls = true;
     ui->tbTrend->selectRow(iSelRow);
+    m_bDisableTrendControls = false;
   }
   return true;
 }
