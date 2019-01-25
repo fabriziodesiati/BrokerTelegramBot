@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>804</width>
+    <width>810</width>
     <height>577</height>
    </rect>
   </property>
@@ -637,7 +637,7 @@
          <item>
           <widget class="QDateTimeEdit" name="dtTrendStart">
            <property name="displayFormat">
-            <string>yyyy-MM-dd hh:mm</string>
+            <string>yyyy-MM-dd_hh:mm</string>
            </property>
            <property name="calendarPopup">
             <bool>true</bool>
@@ -660,7 +660,7 @@
          <item>
           <widget class="QDateTimeEdit" name="dtTrendStop">
            <property name="displayFormat">
-            <string>yyyy-MM-dd hh:mm</string>
+            <string>yyyy-MM-dd_hh:mm</string>
            </property>
            <property name="calendarPopup">
             <bool>true</bool>
@@ -803,6 +803,13 @@
           <widget class="QPushButton" name="pbTrendStop">
            <property name="text">
             <string>STOP</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pbTrendDelete">
+           <property name="text">
+            <string>DELETE</string>
            </property>
           </widget>
          </item>

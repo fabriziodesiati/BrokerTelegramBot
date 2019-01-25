@@ -300,6 +300,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   connect(ui->pbTrendStop
     , SIGNAL(clicked())
     , SLOT(slotOnTrendStopClicked()));
+  connect(ui->pbTrendDelete
+    , SIGNAL(clicked())
+    , SLOT(slotOnTrendDeleteClicked()));
   connect(ui->tbHistory->selectionModel()
     , SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&))
     , SLOT(slotOnItemSelectedHistory(
@@ -332,6 +335,8 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
   ui->dtTrendStart->setDateTime(QDateTime::currentDateTime());
   ui->dtTrendStop->setDateTime(QDateTime::currentDateTime());
   slotOnComboTrendTypeCurrentTextChanged(ui->comboTrendType->currentText());
+  ui->sbTrendAmount->setValue(
+    CAppConfiguration::GetInstance().get("proposal", "1.0").toDouble());
 
   /* Update Status: INITIALIZE */
   m_StatusUpdate(Status::kINITIALIZE);
@@ -635,7 +640,7 @@ void CAppBrokerBinary::slotOnTrendStartClicked()
 void CAppBrokerBinary::slotOnTrendStopClicked()
 {  
   RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
-    , QString("Cannot retrieve from Trend Info")
+    , QString("Cannot retrieve from Selected Trend Id")
     , );  
   RETURN_IFW_WDG(!m_mapTrendId2Info.contains(m_i64TrendIdSelected)
     , QString("Cannot retrieve from Trend Info")
@@ -650,6 +655,30 @@ void CAppBrokerBinary::slotOnTrendStopClicked()
   /* Update trend on database */
   RETURN_IFW(!m_DbTrendUpdate({
           {"status", info.strStatus  }}
+      , m_i64TrendIdSelected)
+    , "Unable to update trend on database", );
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: slotOnTrendDeleteClicked
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190125
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::slotOnTrendDeleteClicked()
+{  
+  RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
+    , QString("Cannot retrieve from Selected Trend Id")
+    , );
+  // Stop if required
+  if (ui->pbTrendStop->isEnabled()) {
+    slotOnTrendStopClicked();
+  }
+  /* Update trend on database */
+  RETURN_IFW(!m_DbTrendUpdate({
+          {"deleted", "1" }}
       , m_i64TrendIdSelected)
     , "Unable to update trend on database", );
 }
@@ -740,7 +769,6 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
   , const QItemSelection&)
 {
   ui->textDetails->setVisible(false);
-  ui->pbTrendStop->setEnabled(false);
   m_i64TrendIdSelected = -1;
   if (!sel.isEmpty())
   {
@@ -756,9 +784,9 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       ui->sbTrendValueStart->setValue(record.value("value_start").toFloat());
       ui->sbTrendValueStop->setValue(record.value("value_stop").toFloat());
       ui->dtTrendStart->setDateTime(QDateTime::fromString(
-        record.value("date_time_start").toString(), "yyyy-MM-dd hh:mm:ss"));
+        record.value("date_time_start").toString(), "yyyy-MM-dd_hh:mm:ss"));
       ui->dtTrendStop->setDateTime(QDateTime::fromString(
-        record.value("date_time_stop").toString(), "yyyy-MM-dd hh:mm:ss"));
+        record.value("date_time_stop").toString(), "yyyy-MM-dd_hh:mm:ss"));
       ui->comboTrendContractType->setCurrentText(record.value("contract_type")
         .toString());
       ui->comboTrendSymbolA->setCurrentText(record.value("symbolA").toString());
@@ -769,15 +797,9 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       ui->comboTrendDurationUnit->setCurrentText(record.value("duration_unit")
         .toString());      
       ui->sbTrendMargin->setValue(record.value("margin").toFloat());
-      if (m_i64SessionId == record.value("session_id").toLongLong()) {
-        if (record.value("status").toString().startsWith("START")) {
-          ui->pbTrendStop->setEnabled(true);
-        }
-      }
-      slotOnComboTrendTypeCurrentTextChanged(
-        record.value("trend_type").toString());
     }    
   }
+  m_TrendControlsEnable();
 }
 
 /* ==========================================================================
@@ -1070,6 +1092,7 @@ bool CAppBrokerBinary::m_DbCreateTables()
         , date_time_stop text NOT NULL \
         , margin text NOT NULL \
         , req_id int \
+        , deleted int NOT NULL DEFAULT 0 \
         , FOREIGN KEY(session_id) REFERENCES sessions(id))")
     , "Unable to create trend table"
     , false);
@@ -1252,14 +1275,13 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
  * ========================================================================== */
 bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
 {
-  ui->pbTrendStop->setEnabled(false);
   int iSelRow = -1;
   auto  selRows = ui->tbTrend->selectionModel()->selectedRows();
   if (selRows.count() > 0) {
     iSelRow = selRows.at(0).row();
   }
   m_modelTrend.setQuery(
-    QString("SELECT * from trend WHERE 1=1 %1 ORDER BY date_time DESC")
+    QString("SELECT * from trend WHERE deleted=0 %1 ORDER BY date_time DESC")
       .arg(-1 == m_i64SessionIdSelected ? ""
         : QString("AND session_id=%1").arg(m_i64SessionIdSelected)));
   /* Hide columns first time */
@@ -1292,6 +1314,7 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     , {true ,true }     //date_time_stop
     , {true ,true }     //margin
     , {false,false}     //req_id
+    , {false,false}     //deleted
   };
   if (bHideColumns)
   {
@@ -1328,6 +1351,7 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     ui->tbTrend->selectRow(iSelRow);
     m_bDisableTrendControls = false;
   }
+  m_TrendControlsEnable();
   return true;
 }
 
@@ -1598,12 +1622,17 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
 bool CAppBrokerBinary::m_DbTrendUpdate(const QMap<QString,QString>& mapValues
   , const int64_t& i64Id)
 {
+  static const QStringList listFielsdInt = QStringList()
+    << "req_id"
+    << "deleted";
   QString strSetValues;
-  for (auto strFieldName: mapValues.keys()) {    
-    strSetValues.append(QString("%1%2 = '%3'")
+  for (auto strFieldName: mapValues.keys()) {
+    strSetValues.append(QString("%1%2 = %3")
       .arg(strSetValues.isEmpty() ? "" : ", ")
       .arg(strFieldName)
-      .arg(mapValues.value(strFieldName)));
+      .arg(listFielsdInt.contains(strFieldName)
+        ? mapValues.value(strFieldName)
+        : QString("'%1'").arg(mapValues.value(strFieldName))));
   }
   RETURN_IFW(!CAppDatabase::GetInstance().execQuery(QString(
       "UPDATE trend SET %1 \
@@ -2301,7 +2330,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , "JSonValue 'date_start' doesn't exist", false);
         QDateTime dtStart = QDateTime::fromSecsSinceEpoch(
           msg__proposal_open_contract__date_start);
-        QString strDateStart = dtStart.toString("yyyy-MM-dd hh:mm:ss");
+        QString strDateStart = dtStart.toString("yyyy-MM-dd_hh:mm:ss");
         int64_t msg__proposal_open_contract__date_expiry;
         RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
           , "date_expiry"
@@ -2309,7 +2338,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , "JSonValue 'date_expiry' doesn't exist", false);
         QDateTime dtExpiry = QDateTime::fromSecsSinceEpoch(
           msg__proposal_open_contract__date_expiry);
-        QString strDateExpiry = dtExpiry.toString("yyyy-MM-dd hh:mm:ss");
+        QString strDateExpiry = dtExpiry.toString("yyyy-MM-dd_hh:mm:ss");
         int64_t msg__proposal_open_contract__current_spot_time = 0;
         RETURN_IFW_WDG(!m_JSonValueLong(msg__proposal_open_contract
           , "current_spot_time"
@@ -2385,7 +2414,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         info.strForget = msg__tick__id;
         info.strQuote = msg__tick__quote;
         info.strEpoch = QDateTime::fromSecsSinceEpoch(
-          msg__tick__epoch.toLongLong()).toString("yyyy-MM-dd hh:mm");
+          msg__tick__epoch.toLongLong()).toString("yyyy-MM-dd_hh:mm:ss");
         float f32Quote = info.strQuote.toFloat();
         float f32Value = m_ValueTrend(info);        
         float f32Margin = info.strMargin.toFloat();
@@ -2765,15 +2794,15 @@ float CAppBrokerBinary::m_ValueTrend(sTrendInfo& info)
 {
   if ("TIME" == info.strTrendType) {
     uint64_t u64SecStart = QDateTime::fromString(info.strDateTimeStart
-      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+      , "yyyy-MM-dd_hh:mm:ss").toSecsSinceEpoch();
     uint64_t u64SecStop = QDateTime::fromString(info.strDateTimeStop
-      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+      , "yyyy-MM-dd_hh:mm:ss").toSecsSinceEpoch();
     uint64_t u64DiffSecTime = u64SecStop - u64SecStart;
     float f32DiffValue = info.strValueStop.toFloat() 
       - info.strValueStart.toFloat();
     float f32IncrForSec = f32DiffValue / u64DiffSecTime;
     uint64_t u64SecEpoch = QDateTime::fromString(info.strEpoch
-      , "yyyy-MM-dd hh:mm").toSecsSinceEpoch();
+      , "yyyy-MM-dd_hh:mm:ss").toSecsSinceEpoch();
     float f32Value = info.strValueStart.toFloat() +
       ((u64SecEpoch - u64SecStart) * f32IncrForSec);
     info.strValue = QString::number(f32Value);
@@ -2793,4 +2822,25 @@ float CAppBrokerBinary::m_ValueTrend(sTrendInfo& info)
   info.strDifference = QString::number(info.strValue.toFloat() 
     - info.strQuote.toFloat());
   return info.strValue.toFloat();
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_TrendControlsEnable
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190125
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_TrendControlsEnable()
+{
+  ui->pbTrendStop->setEnabled(false);
+  ui->pbTrendDelete->setEnabled(false);
+  RETURN_IF(-1 == m_i64TrendIdSelected,);
+  RETURN_IFW_WDG(!m_mapTrendId2Info.contains(m_i64TrendIdSelected)
+    , QString("Cannot retrieve from Trend Info")
+    , );
+  sTrendInfo info = m_mapTrendId2Info.value(m_i64TrendIdSelected);  
+  ui->pbTrendStop->setEnabled(info.strStatus.startsWith("START"));
+  ui->pbTrendDelete->setEnabled(true);
 }

@@ -135,6 +135,7 @@ public slots:
   void slotOnBalanceClicked();  
   void slotOnTrendStartClicked();
   void slotOnTrendStopClicked();
+  void slotOnTrendDeleteClicked();
   void slotOnItemSelectedHistory(const QItemSelection&, const QItemSelection&);
   void slotOnItemSelectedProposal(const QItemSelection&, const QItemSelection&);
   void slotOnItemSelectedTrend(const QItemSelection&, const QItemSelection&);  
@@ -216,6 +217,7 @@ private:
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
   bool m_ProposalGO();
   float m_ValueTrend(sTrendInfo&);
+  void m_TrendControlsEnable();
 };
 
 #endif // APP_BROKER_BINARY_H
