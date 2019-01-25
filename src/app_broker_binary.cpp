@@ -1820,13 +1820,20 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     , {"parameters", strMsg}
     , {"details"   , strMsg} })
     , "Unable to insert history record on database", false);
+  static const QMap<QString,QString> mapDurationUnit = {
+    {"SEC", "s"}, {"MIN", "m"}
+  };
   //GBP USD CALL 5 MIN WAIT CONFIRM
   //USD CHF PUT 5 MIN WAIT CONFIRM
   //GO
   //NO
   //WIN OPTION
   //LOST OPTION
-  if      (strMsg.endsWith("WAIT CONFIRM")) {
+  //TIME
+  //PRICE
+  //STOP
+  if      (strMsg.endsWith("WAIT CONFIRM"))
+  {
     QStringList list = strMsg.split(" ");
     // Early return without CATCH_ABORT (return true)
     RETURN_IFW_WDG(list.count() < 7, "WAIT CONFIRM request malformed", true);
@@ -1835,9 +1842,6 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     QString strContractType = list.at(2);
     QString strDuration = list.at(3);
     QString strDurationUnit = list.at(4);
-    static const QMap<QString,QString> mapDurationUnit = {
-      {"SEC", "s"}, {"MIN", "m"}
-    };
     // proposal
     RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
         , { 
@@ -1852,7 +1856,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
           })
       , "Error on send proposal request", false);
   }
-  else if (strMsg == "NO") {
+  else if (strMsg == "NO")
+  {
     // Early return without CATCH_ABORT (return true)
 #if 0 
     RETURN_IFW_WDG(Status::kWAITFORCON != m_status
@@ -1870,7 +1875,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     m_mapProposalId2Info.remove(m_i64LastIdProposal);
     m_i64LastIdProposal = -1;    
   }
-  else if (strMsg == "GO") {
+  else if (strMsg == "GO")
+  {
     // Early return without CATCH_ABORT (return true)
     RETURN_IFW_WDG(Status::kWAITFORCON != m_status
       , "Cannot place proposal in this status", true);
@@ -1883,7 +1889,8 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     m_StatusUpdate(Status::kAUTHORIZED);
     RETURN_IFW_WDG(!m_ProposalGO(), "Error on place proposal", false);
   }  
-  else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION") {
+  else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION")
+  {
     // Update status_tbot on database
 #if APP_DEBUG == 1
     {
@@ -1900,6 +1907,94 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     /* Update proposal on database */
     RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
       , "Unable to update proposal on database", false);
+  }
+  else if (strMsg.endsWith("TIME"))
+  {
+    QStringList list = strMsg.split(" ");
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW_WDG(list.count() < 10, "TIME request malformed", true);
+    ui->comboTrendType->setCurrentText("TIME");
+    ui->comboTrendSymbolA->setCurrentText(list.at(0));
+    ui->comboTrendSymbolB->setCurrentText(list.at(1));
+    ui->comboTrendContractType->setCurrentText(list.at(2));
+    ui->sbTrendDuration->setValue(list.at(3).toInt());
+    ui->comboTrendDurationUnit->setCurrentText(mapDurationUnit.value(
+      list.at(4), "m"));
+    ui->dtTrendStart->setDateTime(QDateTime::fromString(list.at(5)
+      , "yyyy-MM-dd_hh:mm:ss"));
+    ui->sbTrendValueStart->setValue(list.at(6).toFloat());
+    ui->dtTrendStop->setDateTime(QDateTime::fromString(list.at(7)
+      , "yyyy-MM-dd_hh:mm:ss"));
+    ui->sbTrendValueStop->setValue(list.at(8).toFloat());
+    slotOnTrendStartClicked();
+  }
+  else if (strMsg.endsWith("PRICE"))
+  {
+    QStringList list = strMsg.split(" ");
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW_WDG(list.count() < 7, "PRICE request malformed", true);
+    ui->comboTrendType->setCurrentText("PRICE");
+    ui->comboTrendSymbolA->setCurrentText(list.at(0));
+    ui->comboTrendSymbolB->setCurrentText(list.at(1));
+    ui->comboTrendContractType->setCurrentText(list.at(2));
+    ui->sbTrendDuration->setValue(list.at(3).toInt());    
+    ui->comboTrendDurationUnit->setCurrentText(mapDurationUnit.value(
+      list.at(4), "m"));
+    ui->sbTrendValue->setValue(list.at(5).toFloat());
+    slotOnTrendStartClicked();
+  }
+  else if (strMsg.endsWith("STOP"))
+  {
+    QStringList list = strMsg.split(" ");
+    RETURN_IFW_WDG(list.count() < 2, "PRICE request malformed", true);
+    QString strTrendType = list.at(list.count() - 2);
+    if      ("TIME" == strTrendType)
+    {
+      RETURN_IFW_WDG(list.count() < 10, "TIME STOP request malformed", true);
+      bool bFound = false;
+      for (auto i64Id : m_mapTrendId2Info.keys())
+      {
+        sTrendInfo info = m_mapTrendId2Info.value(i64Id);
+        if (list.at(0) == info.strSymbolA       &&
+            list.at(1) == info.strSymbolB       &&
+            list.at(2) == info.strContractType  &&
+            list.at(3) == info.strDuration      &&
+            list.at(5) == info.strDateTimeStart &&
+            list.at(6) == info.strValueStart    &&
+            list.at(7) == info.strDateTimeStop  &&
+            list.at(8) == info.strValueStop)
+        {
+          bFound = true;
+          m_i64TrendIdSelected = i64Id;
+          break;
+        }
+      }
+      RETURN_IFW_WDG(bFound, "Trend not found", true);
+      slotOnTrendStopClicked();
+    }
+    else if ("PRICE" == strTrendType)
+    {
+      bool bFound = false;
+      for (auto i64Id : m_mapTrendId2Info.keys())
+      {
+        sTrendInfo info = m_mapTrendId2Info.value(i64Id);
+        if (list.at(0) == info.strSymbolA       &&
+            list.at(1) == info.strSymbolB       &&
+            list.at(2) == info.strContractType  &&
+            list.at(3) == info.strDuration      &&
+            list.at(5) == info.strValue)
+        {
+          bFound = true;
+          m_i64TrendIdSelected = i64Id;
+          break;
+        }
+      }
+      RETURN_IFW_WDG(bFound, "Trend not found", true);
+      slotOnTrendStopClicked();
+    }
+    else {
+      RETURN_IFW_WDG(true, "PRICE request malformed", true);
+    }
   }
   return true;
 }
