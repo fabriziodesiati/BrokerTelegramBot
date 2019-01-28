@@ -800,6 +800,8 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
     }    
   }
   m_TrendControlsEnable();
+  // Reload Proposal for Trend selected
+  m_DbTrendProposalsRelaod();
 }
 
 /* ==========================================================================
@@ -1352,7 +1354,8 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     m_bDisableTrendControls = false;
   }
   m_TrendControlsEnable();
-  return true;
+  // Reload Proposal for Trend selected
+  return m_DbTrendProposalsRelaod();
 }
 
 /* ==========================================================================
