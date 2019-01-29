@@ -560,7 +560,7 @@
             </size>
            </property>
            <property name="currentText">
-            <string>USD</string>
+            <string>EUR</string>
            </property>
            <item>
             <property name="text">
@@ -637,7 +637,7 @@
          <item>
           <widget class="QDateTimeEdit" name="dtTrendStart">
            <property name="displayFormat">
-            <string>yyyy-MM-dd_hh:mm</string>
+            <string>yyyy-MM-dd_hh:mm:ss</string>
            </property>
            <property name="calendarPopup">
             <bool>true</bool>
@@ -660,7 +660,7 @@
          <item>
           <widget class="QDateTimeEdit" name="dtTrendStop">
            <property name="displayFormat">
-            <string>yyyy-MM-dd_hh:mm</string>
+            <string>yyyy-MM-dd_hh:mm:ss</string>
            </property>
            <property name="calendarPopup">
             <bool>true</bool>
