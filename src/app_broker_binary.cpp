@@ -2481,6 +2481,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       }
       else if ("tick" == strMsgType) 
       { /* ticks response */
+        bInsertHistory = false;
         QJsonObject msg__tick;
         RETURN_IFW_WDG(!m_JSonObject(msg, "tick"
           , msg__tick)
