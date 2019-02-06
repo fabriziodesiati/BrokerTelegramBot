@@ -58,7 +58,8 @@
  */
 #define INFO_APP_WDG(strFunc,strMsg)\
   do { \
-  ui->lblInfo->setText(QString("[INFO] %1: %2").arg(strFunc).arg(strMsg)); \
+  ui->lblInfo->setText(QString("[INFO] %1 REQ[%2/%3]: %4").arg(strFunc) \
+    .arg(ui->sbReqIdSent->value()).arg(ui->sbReqIdRecv->value()).arg(strMsg)); \
   INFO_APP(strFunc,strMsg); \
   } while (false)
 
@@ -67,8 +68,8 @@
  */
 #define WARNING_APP_WDG(strFunc,strMsg)\
   do { \
-  QString strFullMsg = QString("[WARNING] %1 : %2").arg(strFunc).arg(strMsg); \
-  ui->lblError->setText(strFullMsg); \
+  QString strFullMsg = QString("[WARNING] %1 REQ[%2/%3]: %4").arg(strFunc) \
+    .arg(ui->sbReqIdSent->value()).arg(ui->sbReqIdRecv->value()).arg(strMsg); \
   ui->lblError->setStyleSheet("QLabel { color : yellow; }"); \
   m_DbHistoryInsert({ \
       {"operation" , "APPL WARN"} \
@@ -81,8 +82,8 @@
  */
 #define CRITICAL_APP_WDG(strFunc,strMsg)\
   do { \
-  QString strFullMsg = QString("[CRITICAL] %1 : %2").arg(strFunc).arg(strMsg); \
-  ui->lblError->setText(strFullMsg); \
+  QString strFullMsg = QString("[CRITICAL] %1 REQ[%2/%3]: %4").arg(strFunc) \
+    .arg(ui->sbReqIdSent->value()).arg(ui->sbReqIdRecv->value()).arg(strMsg); \
   ui->lblError->setStyleSheet("QLabel { color : red; }"); \
   m_DbHistoryInsert({ \
       {"operation" , "APPL CRIT"} \
@@ -2012,58 +2013,63 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
  *         SUBORDINATES: None
  * ========================================================================== */
 bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
-  , const QMap<QString,QString>& mapValues, QString& strMsg)
+  , const QMap<QString,QString>& mapValuesIn, QString& strMsg)
 {
   strMsg = "";
   bool bInsertHistory = true;
+  QMap<QString, QString> mapValues = mapValuesIn;
+  // Increment req_id and add it on values map
+  if ("ping" == strMsgType) {
+    ui->sbPingSent->setValue(ui->sbPingSent->value() + 1);
+    mapValues.insert("req_id", QString::number(ui->sbPingSent->value()));
+  }
+  else {
+    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
+    mapValues.insert("req_id", QString::number(ui->sbReqIdSent->value()));
+  }
   // Prepare Send in JSon format
   if      ("ping" == strMsgType)
   { /* ping */
     bInsertHistory = false;
-    ui->sbPingSent->setValue(ui->sbPingSent->value() + 1);
     strMsg = QStringLiteral(
       "{              \
         \"ping\": 1,  \
         \"req_id\": %1\
        }")
-      .arg(ui->sbPingSent->value());
+      .arg(mapValues.value("req_id"));
   }
   else if      ("authorize" == strMsgType)
   { /* authorize */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                      \
         \"authorize\": \"%1\",\
         \"req_id\": %2        \
        }")
       .arg(mapValues.value("authorize"))
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
   }
   else if ("forget" == strMsgType)
   { /* forget */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                   \
         \"forget\": \"%1\",\
         \"req_id\": %2     \
        }")
       .arg(mapValues.value("forget"))
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
   }
   else if ("balance" == strMsgType)
   { /* balance */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                 \
         \"balance\": 1,  \
         \"subscribe\": 1,\
         \"req_id\": %1   \
        }")
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
   }
   else if ("proposal" == strMsgType)
   { /* proposal */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                          \
         \"proposal\": 1,          \
@@ -2082,7 +2088,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(mapValues.value("duration"))
       .arg(mapValues.value("duration_unit"))
       .arg(mapValues.value("symbol"))
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
     /* Insert proposal on database */
     QMap<QString, QString> mapValuesDbInsert = mapValues;
     mapValuesDbInsert.insert("status", "proposal send");
@@ -2109,7 +2115,6 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   }
   else if ("buy" == strMsgType)
   { /* buy */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                          \
         \"buy\": \"%1\",          \
@@ -2118,7 +2123,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
        }")
       .arg(mapValues.value(strMsgType))
       .arg(mapValues.value("price"))
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate(
           {{"status", QString("%1 send").arg(strMsgType)}}
@@ -2127,7 +2132,6 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
   }
   else if ("proposal_open_contract" == strMsgType)
   { /* proposal_open_contract */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                               \
         \"proposal_open_contract\": 1, \
@@ -2136,11 +2140,10 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
         \"req_id\": %2                 \
        }")
       .arg(mapValues.value("contract_id"))
-      .arg(ui->sbReqIdSent->value());
+      .arg(mapValues.value("req_id"));
   }
   else if ("ticks" == strMsgType)
   { /* ticks */
-    ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     strMsg = QStringLiteral(
       "{                               \
         \"ticks\": \"%1\",             \
@@ -2219,8 +2222,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   bool bInsertHistory = true;
+  bool bProposalGOByTrend = false;
   /* Update req_id for repsonses */
-  int64_t i64ReqIdRecv;
+  int64_t i64ReqIdRecv = -1;
   /* Checks if message is error */
   if (m_JSonObject(msg, "error", msg__error)) {    
     // there is error on response
@@ -2343,7 +2347,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
             , m_i64LastIdProposal)
           , "Unable to update proposal on database", false);
         if (0 != info.i64TrendId) {
-          RETURN_IFW_WDG(!m_ProposalGO(), "Error on place proposal", false);
+          bProposalGOByTrend = true;
         }
         else {
           /* Update Status: WAIT FOR CONFIRM */
@@ -2568,6 +2572,8 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
       }
     }
   }
+  // Insert req_id on map
+  mapValues.insert("req_id", QString::number(i64ReqIdRecv));
   QString strParameters = QString("%1: ").arg(strMsgType);
   for(auto str: mapValues.keys()) {
     strParameters.append(QString("%1=%2, ")
@@ -2578,6 +2584,10 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     , {"parameters", strParameters}
     , {"details"   , strMsg} })
     , "Unable to insert history record on database", false);
+  if (bProposalGOByTrend) {
+    RETURN_IFW_WDG(!m_ProposalGO(true), "Error on place proposal by trend"
+      , false);
+  }
   return true;
 }
 
@@ -2858,7 +2868,7 @@ void CAppBrokerBinary::m_DetailsUpdate(const QSqlQueryModel& model, int row)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_ProposalGO()
+bool CAppBrokerBinary::m_ProposalGO(bool bByTrend)
 {
   /* retrieve info for mapped proposal*/
   QString strContractType = m_mapProposalId2Info.value(m_i64LastIdProposal)

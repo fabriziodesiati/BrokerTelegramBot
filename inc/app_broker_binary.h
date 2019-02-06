@@ -215,7 +215,7 @@ private:
   int64_t m_i64IdTrendByInfo(const QString&, const QString&, sTrendInfo&);
   bool m_ProposalResumeUpdate();
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
-  bool m_ProposalGO();
+  bool m_ProposalGO(bool = false);
   float m_ValueTrend(sTrendInfo&);
   void m_TrendControlsEnable();
 };
