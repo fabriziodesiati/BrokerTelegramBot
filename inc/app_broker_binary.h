@@ -64,7 +64,6 @@ public:
   {
       kINITIALIZE
     , kAUTHORIZED
-    , kWAITFORCON
   };
 
   struct sProposalInfo {
@@ -170,13 +169,13 @@ private:
   bool m_bFirstAuthorized;
   bool m_bDisableTrendControls;
   QString m_strBalanceStart;
-  int64_t m_i64SessionId;
-  int64_t m_i64SessionIdSelected;
-  int64_t m_i64TrendIdSelected;
+  int64_t m_i64IdSession;
+  int64_t m_i64IdSessionSelected;
+  int64_t m_i64IdTrendSelected;
   
-  int64_t m_i64LastIdProposal;
   QMap<int64_t,sProposalInfo> m_mapProposalId2Info;
-  QList<int64_t> m_listSentProposals;
+  QList<int64_t> m_listNoTrendProposalsOnWait;
+  QList<int64_t> m_listNoTrendProposalsSent;
 
   QMap<int64_t,sTrendInfo> m_mapTrendId2Info;
 
@@ -215,9 +214,11 @@ private:
   int64_t m_i64IdTrendByInfo(const QString&, const QString&, sTrendInfo&);
   bool m_ProposalResumeUpdate();
   void m_DetailsUpdate(const QSqlQueryModel&, int);  
-  bool m_ProposalGO(bool = false);
+  bool m_ProposalGO(const int64_t&, bool = false);
   float m_ValueTrend(sTrendInfo&);
-  void m_TrendControlsEnable();
+  void m_TrendControlsEnable(const int64_t&);
+  void m_TrendStop(const int64_t&);
+  void m_TrendDelete(const int64_t&);
 };
 
 #endif // APP_BROKER_BINARY_H

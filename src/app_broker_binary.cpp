@@ -219,10 +219,9 @@ CAppBrokerBinary::CAppBrokerBinary(const QString& app_id, const QString& token
 , m_bFirstAuthorized     {                true }
 , m_bDisableTrendControls{               false }
 , m_strBalanceStart      {                  "" }
-, m_i64SessionId         {                  -1 }
-, m_i64SessionIdSelected {                  -1 }
-, m_i64TrendIdSelected   {                  -1 }
-, m_i64LastIdProposal    {                  -1 }
+, m_i64IdSession         {                  -1 }
+, m_i64IdSessionSelected {                  -1 }
+, m_i64IdTrendSelected   {                  -1 }
 {
   /* Set URL */
   m_url = QUrl(QStringLiteral("wss://ws.binaryws.com/websockets/v3?app_id=%1")
@@ -371,14 +370,14 @@ CAppBrokerBinary::~CAppBrokerBinary()
  * ========================================================================== */
 void CAppBrokerBinary::closeEvent(QCloseEvent*)
 {
-  RETURN_IF(-1 == m_i64SessionId, );
+  RETURN_IF(-1 == m_i64IdSession, );
   QSqlQuery qry;
   QString strQuery = QString(
       "SELECT count(*) as COUNT FROM proposals WHERE session_id = %1")
-    .arg(QString::number(m_i64SessionId));
-  if (-1 != m_i64SessionIdSelected) {
+    .arg(QString::number(m_i64IdSession));
+  if (-1 != m_i64IdSessionSelected) {
     strQuery.append(QString(" AND session_id=%1")
-      .arg(m_i64SessionIdSelected));
+      .arg(m_i64IdSessionSelected));
   }
   RETURN_IF(!qry.exec(strQuery), );
   RETURN_IF(!qry.next(), );
@@ -388,7 +387,7 @@ void CAppBrokerBinary::closeEvent(QCloseEvent*)
     , tr("Session without proposals... Do you want to remove it?")
     , QMessageBox::Cancel | QMessageBox::Yes)))
   {
-    m_ClearSession(m_i64SessionId);
+    m_ClearSession(m_i64IdSession);
   }
   emit appClosed();
 }
@@ -496,12 +495,12 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
   const QString& strSelectedSession)
 {
   ui->pbClearSession->setEnabled(false);
-  m_i64SessionIdSelected = -1;
+  m_i64IdSessionSelected = -1;
   RETURN_IF(strSelectedSession.isEmpty(), );  
   if ("ALL" != strSelectedSession) {
     auto list = strSelectedSession.split(":");
     CATCH_BUG_WDG(list.count() < 2, "ComboBox for sessions is malformed");
-    m_i64SessionIdSelected = strSelectedSession.split(":").at(0).toLongLong();
+    m_i64IdSessionSelected = strSelectedSession.split(":").at(0).toLongLong();
   }
   CATCH_ABORT_WDG(!m_DbHistoryRelaod(true)
     , "Cannot reload history from database");
@@ -511,8 +510,8 @@ void CAppBrokerBinary::slotOnComboSessionsCurrentTextChanged(
     , "Cannot reload trend from database");
   CATCH_ABORT_WDG(!m_DbTrendProposalsRelaod(true)
     , "Cannot reload trend proposals from database");
-  ui->pbClearSession->setEnabled(-1 != m_i64SessionIdSelected &&
-    m_i64SessionId != m_i64SessionIdSelected);
+  ui->pbClearSession->setEnabled(-1 != m_i64IdSessionSelected &&
+    m_i64IdSession != m_i64IdSessionSelected);
 }
 
 /* ==========================================================================
@@ -568,7 +567,7 @@ void CAppBrokerBinary::slotOnComboTrendTypeCurrentTextChanged(
 void CAppBrokerBinary::slotOnClearSessionClicked()
 {
   // Clear selected session
-  RETURN_IFC_WDG(!m_ClearSession(m_i64SessionIdSelected)
+  RETURN_IFC_WDG(!m_ClearSession(m_i64IdSessionSelected)
     , "Error on remove session", );
   // Reload combo of sessions
   RETURN_IFC_WDG(!m_ComboSessionLoad()
@@ -639,25 +638,8 @@ void CAppBrokerBinary::slotOnTrendStartClicked()
  *         SUBORDINATES: None
  * ========================================================================== */
 void CAppBrokerBinary::slotOnTrendStopClicked()
-{  
-  RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
-    , QString("Cannot retrieve from Selected Trend Id")
-    , );  
-  RETURN_IFW_WDG(!m_mapTrendId2Info.contains(m_i64TrendIdSelected)
-    , QString("Cannot retrieve from Trend Info")
-    , );
-  sTrendInfo info = m_mapTrendId2Info.value(m_i64TrendIdSelected);
-  info.strStatus = "STOP";
-  m_mapTrendId2Info.insert(m_i64TrendIdSelected, info);
-  RETURN_IFC_WDG(!m_SendSocketMessage("forget"
-    , { 
-        {"forget"         , info.strForget }
-    }), "Error on send ticks request", );
-  /* Update trend on database */
-  RETURN_IFW(!m_DbTrendUpdate({
-          {"status", info.strStatus  }}
-      , m_i64TrendIdSelected)
-    , "Unable to update trend on database", );
+{
+  m_TrendStop(m_i64IdTrendSelected);
 }
 
 /* ==========================================================================
@@ -670,18 +652,7 @@ void CAppBrokerBinary::slotOnTrendStopClicked()
  * ========================================================================== */
 void CAppBrokerBinary::slotOnTrendDeleteClicked()
 {  
-  RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
-    , QString("Cannot retrieve from Selected Trend Id")
-    , );
-  // Stop if required
-  if (ui->pbTrendStop->isEnabled()) {
-    slotOnTrendStopClicked();
-  }
-  /* Update trend on database */
-  RETURN_IFW(!m_DbTrendUpdate({
-          {"deleted", "1" }}
-      , m_i64TrendIdSelected)
-    , "Unable to update trend on database", );
+  m_TrendDelete(m_i64IdTrendSelected);
 }
 
 /* ==========================================================================
@@ -770,7 +741,7 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
   , const QItemSelection&)
 {
   ui->textDetails->setVisible(false);
-  m_i64TrendIdSelected = -1;
+  m_i64IdTrendSelected = -1;
   if (!sel.isEmpty())
   {
     auto il = sel.indexes();
@@ -778,7 +749,7 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       ui->textDetails->setVisible(true);
       m_DetailsUpdate(m_modelTrend, il.first().row());
       QSqlRecord record = m_modelTrend.record(il.first().row());
-      m_i64TrendIdSelected = record.value("id").toLongLong();
+      m_i64IdTrendSelected = record.value("id").toLongLong();
       RETURN_IF(m_bDisableTrendControls, );
       ui->comboTrendType->setCurrentText(record.value("trend_type").toString());
       ui->sbTrendValue->setValue(record.value("value").toFloat());
@@ -800,7 +771,7 @@ void CAppBrokerBinary::slotOnItemSelectedTrend(const QItemSelection& sel
       ui->sbTrendMargin->setValue(record.value("margin").toFloat());
     }    
   }
-  m_TrendControlsEnable();
+  m_TrendControlsEnable(m_i64IdTrendSelected);
   // Reload Proposal for Trend selected
   m_DbTrendProposalsRelaod();
 }
@@ -892,8 +863,6 @@ void CAppBrokerBinary::m_StatusUpdate(Status status)
   case Status::kINITIALIZE: uiMain->statusbar->showMessage("INITIALIZE");
     break;
   case Status::kAUTHORIZED: uiMain->statusbar->showMessage("AUTHORIZED");
-    break;
-  case Status::kWAITFORCON: uiMain->statusbar->showMessage("WAIT FOR CONFIRM");
     break;
   }
 }
@@ -1142,9 +1111,9 @@ bool CAppBrokerBinary::m_DbHistoryRelaod(bool bForceResize)
 {
   m_modelHistory.setQuery(
     QString("SELECT * from history %1 ORDER BY date_time DESC")
-      .arg(-1 == m_i64SessionIdSelected 
+      .arg(-1 == m_i64IdSessionSelected 
         ? ""
-        : QString("WHERE session_id=%1").arg(m_i64SessionIdSelected)));
+        : QString("WHERE session_id=%1").arg(m_i64IdSessionSelected)));
   /* Hide columns first time */
   static bool bHideColumns = true;
   static const QList<QPair<bool, bool>> listShowResizeCols = {
@@ -1196,8 +1165,8 @@ bool CAppBrokerBinary::m_DbProposalsRelaod(bool bForceResize)
   QString strComboProposals = ui->comboProposals->currentText();
   m_modelProposals.setQuery(
     QString("SELECT * from proposals WHERE 1=1 %1 %2 ORDER BY date_time DESC")
-      .arg(-1 == m_i64SessionIdSelected ? ""
-        : QString("AND session_id=%1").arg(m_i64SessionIdSelected))
+      .arg(-1 == m_i64IdSessionSelected ? ""
+        : QString("AND session_id=%1").arg(m_i64IdSessionSelected))
       .arg("VIP" == strComboProposals
         ? "AND trend_id IS NULL"
         : "trend" == strComboProposals 
@@ -1285,8 +1254,8 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
   }
   m_modelTrend.setQuery(
     QString("SELECT * from trend WHERE deleted=0 %1 ORDER BY date_time DESC")
-      .arg(-1 == m_i64SessionIdSelected ? ""
-        : QString("AND session_id=%1").arg(m_i64SessionIdSelected)));
+      .arg(-1 == m_i64IdSessionSelected ? ""
+        : QString("AND session_id=%1").arg(m_i64IdSessionSelected)));
   /* Hide columns first time */
   static bool bHideColumns = true;
   struct sColumnConf {
@@ -1354,7 +1323,7 @@ bool CAppBrokerBinary::m_DbTrendRelaod(bool bForceResize)
     ui->tbTrend->selectRow(iSelRow);
     m_bDisableTrendControls = false;
   }
-  m_TrendControlsEnable();
+  m_TrendControlsEnable(m_i64IdTrendSelected);
   // Reload Proposal for Trend selected
   return m_DbTrendProposalsRelaod();
 }
@@ -1371,7 +1340,12 @@ bool CAppBrokerBinary::m_DbTrendProposalsRelaod(bool bForceResize)
 {
   m_modelTrendProposals.setQuery(
     QString("SELECT * from proposals WHERE 1=1 %1 ORDER BY date_time DESC")
-      .arg(QString("AND trend_id=%1").arg(m_i64TrendIdSelected)));
+      .arg(-1 != m_i64IdTrendSelected 
+        ? QString("AND trend_id=%1").arg(m_i64IdTrendSelected)
+        : QString("AND trend_id != -1 %1")
+          .arg(-1 != m_i64IdSessionSelected
+            ? QString("AND session_id=%1").arg(m_i64IdSessionSelected)
+            : "")));
   /* Hide columns first time */
   static bool bHideColumns = true;
   struct sColumnConf {
@@ -1444,14 +1418,14 @@ bool CAppBrokerBinary::m_DbTrendProposalsRelaod(bool bForceResize)
 int64_t CAppBrokerBinary::m_DbSessionInsert()
 {
   QString strCurrentDateTime = CurrentDateTime();
-  m_i64SessionId = CAppDatabase::GetInstance().execInsertQuery(QString(
+  m_i64IdSession = CAppDatabase::GetInstance().execInsertQuery(QString(
     "INSERT INTO sessions (date_time) VALUES ('%1')").arg(strCurrentDateTime));
-  RETURN_IFC_WDG(-1 == m_i64SessionId
-    , "Unable to create a valid session id on database", m_i64SessionId);
+  RETURN_IFC_WDG(-1 == m_i64IdSession
+    , "Unable to create a valid session id on database", m_i64IdSession);
   ui->leSession->setText(QString("%1: %2")
-     .arg(m_i64SessionId, 3, 10, QChar('0'))
+     .arg(m_i64IdSession, 3, 10, QChar('0'))
     .arg(strCurrentDateTime));
-  return m_i64SessionId;
+  return m_i64IdSession;
 }
 
 /* ==========================================================================
@@ -1472,7 +1446,7 @@ int64_t CAppBrokerBinary::m_DbHistoryInsert(
         session_id, date_time, operation, balance, currency, parameters\
         , details) \
       VALUES (%1,'%2','%3','%4','%5','%6','%7')")
-      .arg(m_i64SessionId)
+      .arg(m_i64IdSession)
       .arg(CurrentDateTime())
       .arg(mapValues.value("operation"))
       .arg(ui->pbBalance->text())
@@ -1482,7 +1456,7 @@ int64_t CAppBrokerBinary::m_DbHistoryInsert(
   RETURN_IFC_WDG(-1 == i64Id
     , "Unable to insert a history entry on database", i64Id);
   // Reload history if session is selected (or ALL)
-  if (-1 == m_i64SessionIdSelected || m_i64SessionId == m_i64SessionIdSelected){
+  if (-1 == m_i64IdSessionSelected || m_i64IdSession == m_i64IdSessionSelected){
     RETURN_IFC_WDG(!m_DbHistoryRelaod(true)
       , "Unable to reload history from database", i64Id);
   }
@@ -1505,7 +1479,7 @@ int64_t CAppBrokerBinary::m_DbProposalInsert(
         session_id, date_time, status, contract_type, symbolA, symbolB, amount\
         , currency, req_id, trend_id) \
       VALUES (%1,'%2','%3','%4','%5','%6','%7','%8',%9,%10)")
-      .arg(m_i64SessionId)
+      .arg(m_i64IdSession)
       .arg(CurrentDateTime())
       .arg(mapValues.value("status"))
       .arg(mapValues.value("contract_type"))
@@ -1589,7 +1563,7 @@ int64_t CAppBrokerBinary::m_DbTrendInsert(
       VALUES (%1,'%2','%3','%4','%5','%6','%7','%8','%9','%10','%11','%12'\
         ,'%13','%14','%15','%16','%17',%18)"
     )
-      .arg(m_i64SessionId)
+      .arg(m_i64IdSession)
       .arg(CurrentDateTime())
       .arg(mapValues.value("status"))
       .arg(mapValues.value("trend_type"))
@@ -1675,7 +1649,7 @@ bool CAppBrokerBinary::m_ComboSessionLoad()
       .arg(i64ComboValue, 3, 10, QChar('0'))
       .arg(qry.value("date_time").toString());    
     listItems.append(strComboItem);
-    if (i64ComboValue == m_i64SessionId) {
+    if (i64ComboValue == m_i64IdSession) {
       strSelected = strComboItem;
     }
   }
@@ -1864,35 +1838,34 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
   else if (strMsg == "NO")
   {
     // Early return without CATCH_ABORT (return true)
-#if 0 
-    RETURN_IFW_WDG(Status::kWAITFORCON != m_status
-      , "Cannot place proposal in this status", true);
-#endif
-    RETURN_IFW_WDG(-1 == m_i64LastIdProposal
-      , "Cannot retrieve last inserted proposal", false);
-    /* Remove last proposal */
-    m_listSentProposals.removeLast();
+    RETURN_IFW_WDG(m_listNoTrendProposalsOnWait.empty()
+      , "Cannot retrieve last proposal on wait to confirm", false);
+    uint64_t i64FirstNoTrendProposal = m_listNoTrendProposalsOnWait.first();
+    /* Remove from list first proposal */
+    m_listNoTrendProposalsOnWait.removeFirst();
+    /* Remove from map first proposal: all next queries pass by map */
+    m_mapProposalId2Info.remove(i64FirstNoTrendProposal);
+    /* Remove from list first sent proposal */
+    m_listNoTrendProposalsSent.removeAll(i64FirstNoTrendProposal);
     /* Update proposal on database */
-    RETURN_IFW(!m_DbProposalDelete(m_i64LastIdProposal)
+    RETURN_IFW(!m_DbProposalDelete(i64FirstNoTrendProposal)
       , "Unable to delete proposal on database", false);
-    m_StatusUpdate(Status::kAUTHORIZED);
-    /* reset last proposal: all next queries pass by map */
-    m_mapProposalId2Info.remove(m_i64LastIdProposal);
-    m_i64LastIdProposal = -1;    
   }
   else if (strMsg == "GO")
   {
     // Early return without CATCH_ABORT (return true)
-    RETURN_IFW_WDG(Status::kWAITFORCON != m_status
-      , "Cannot place proposal in this status", true);
-    RETURN_IFW_WDG(-1 == m_i64LastIdProposal
-      , "Cannot retrieve last inserted proposal", false);
-    RETURN_IFW_WDG(!m_mapProposalId2Info.contains(m_i64LastIdProposal)
+    RETURN_IFW_WDG(m_listNoTrendProposalsOnWait.empty()
+      , "Cannot retrieve last proposal on wait to confirm", false);
+    uint64_t i64FirstNoTrendProposal = m_listNoTrendProposalsOnWait.first();
+    /* Remove from list first proposal */
+    m_listNoTrendProposalsOnWait.removeFirst();
+    // Early return without CATCH_ABORT (return true)
+    RETURN_IFW_WDG(!m_mapProposalId2Info.contains(i64FirstNoTrendProposal)
       , QString("Id Proposal %1 not present on database")
-        .arg(QString::number(m_i64LastIdProposal))
+        .arg(QString::number(i64FirstNoTrendProposal))
       , false);
-    m_StatusUpdate(Status::kAUTHORIZED);
-    RETURN_IFW_WDG(!m_ProposalGO(), "Error on place proposal", false);
+    RETURN_IFW_WDG(!m_ProposalGO(i64FirstNoTrendProposal)
+      , "Error on place proposal", false);
   }  
   else if (strMsg == "WIN OPTION" || strMsg == "LOST OPTION")
   {
@@ -1900,17 +1873,19 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
 #if APP_DEBUG == 1
     {
       QString strDebug;
-      for(auto id: m_listSentProposals) {
+      for(auto id: m_listNoTrendProposalsSent) {
         strDebug.append(QString("%1 ").arg(QString::number(id)));
       }
-      DEBUG_APP("m_listProposalsOpenOrExpired", strDebug);
+      DEBUG_APP("m_listNoTrendProposalsSent", strDebug);
     }
 #endif
-    RETURN_IF(m_listSentProposals.empty(), true);
-    int64_t i64IdProposal = m_listSentProposals.at(0);
-    m_listSentProposals.removeFirst();
+    RETURN_IF(m_listNoTrendProposalsSent.empty(), true);
+    /* Retrieve first sent proposal */
+    int64_t i64LastNoTrendProposalSent = m_listNoTrendProposalsSent.first();
+    m_listNoTrendProposalsSent.removeFirst();
     /* Update proposal on database */
-    RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}, i64IdProposal)
+    RETURN_IFW_WDG(!m_DbProposalUpdate({{"status_tbot", strMsg}}
+      , i64LastNoTrendProposalSent)
       , "Unable to update proposal on database", false);
   }
   else if (strMsg.endsWith("TIME"))
@@ -1956,7 +1931,7 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
     if      ("TIME" == strTrendType)
     {
       RETURN_IFW_WDG(list.count() < 10, "TIME STOP request malformed", true);
-      bool bFound = false;
+      int64_t i64IdTrendFound = -1;
       for (auto i64Id : m_mapTrendId2Info.keys())
       {
         sTrendInfo info = m_mapTrendId2Info.value(i64Id);
@@ -1969,17 +1944,16 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
             list.at(7) == info.strDateTimeStop  &&
             list.at(8) == info.strValueStop)
         {
-          bFound = true;
-          m_i64TrendIdSelected = i64Id;
+          i64IdTrendFound = i64Id;
           break;
         }
       }
-      RETURN_IFW_WDG(bFound, "Trend not found", true);
-      slotOnTrendStopClicked();
+      RETURN_IFW_WDG(-1 == i64IdTrendFound, "Trend not found", true);
+      m_TrendStop(i64IdTrendFound);
     }
     else if ("PRICE" == strTrendType)
     {
-      bool bFound = false;
+      int64_t i64IdTrendFound = -1;
       for (auto i64Id : m_mapTrendId2Info.keys())
       {
         sTrendInfo info = m_mapTrendId2Info.value(i64Id);
@@ -1989,13 +1963,12 @@ bool CAppBrokerBinary::m_RcvTelegramMessage(const QString& strMsgTot)
             list.at(3) == info.strDuration      &&
             list.at(5) == info.strValue)
         {
-          bFound = true;
-          m_i64TrendIdSelected = i64Id;
+          i64IdTrendFound = i64Id;
           break;
         }
       }
-      RETURN_IFW_WDG(bFound, "Trend not found", true);
-      slotOnTrendStopClicked();
+      RETURN_IFW_WDG(-1 == i64IdTrendFound, "Trend not found", true);
+      m_TrendStop(i64IdTrendFound);
     }
     else {
       RETURN_IFW_WDG(true, "PRICE request malformed", true);
@@ -2023,7 +1996,8 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     ui->sbPingSent->setValue(ui->sbPingSent->value() + 1);
     mapValues.insert("req_id", QString::number(ui->sbPingSent->value()));
   }
-  else {
+  else if (!mapValues.contains("req_id")) {
+    /* increment req_id if isn't passed */
     ui->sbReqIdSent->setValue(ui->sbReqIdSent->value() + 1);
     mapValues.insert("req_id", QString::number(ui->sbReqIdSent->value()));
   }
@@ -2094,12 +2068,14 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     mapValuesDbInsert.insert("status", "proposal send");
     mapValuesDbInsert.insert("req_id"
       , QString::number(ui->sbReqIdSent->value()));
-    m_i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
-    RETURN_IFW(-1 == m_i64LastIdProposal
+    int64_t i64LastIdProposal = m_DbProposalInsert(mapValuesDbInsert);
+    RETURN_IFW(-1 == i64LastIdProposal
       , "Unable to insert proposal on database", false);
     int64_t i64TredId = mapValues.value("trend_id").toLong();
     if (0 == i64TredId) {
-      m_listSentProposals.append(m_i64LastIdProposal);
+      /* Append id proposal on wait and sent list*/
+      m_listNoTrendProposalsOnWait.append(i64LastIdProposal);
+      m_listNoTrendProposalsSent.append(i64LastIdProposal);
     }
     // store contract_type and price to send buy fro CALL or PUT request
     sProposalInfo info;
@@ -2111,7 +2087,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.i64CountDown = 0;
     info.i64ReqId = ui->sbReqIdSent->value();
     info.i64TrendId = i64TredId;
-    m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
+    m_mapProposalId2Info.insert(i64LastIdProposal, info);
   }
   else if ("buy" == strMsgType)
   { /* buy */
@@ -2124,10 +2100,17 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
       .arg(mapValues.value(strMsgType))
       .arg(mapValues.value("price"))
       .arg(mapValues.value("req_id"));
+    sProposalInfo info;
+    int i64IdProposal = m_i64IdProposalByInfo("req_id"
+      , mapValues.value("req_id"), info);
+    RETURN_IFW_WDG(-1 == i64IdProposal
+      , QString("Cannot retrieve from Proposal Info with a req_id=%1")
+        .arg(mapValues.value("req_id"))
+      , false);
     /* Update proposal on database */
     RETURN_IFW(!m_DbProposalUpdate(
           {{"status", QString("%1 send").arg(strMsgType)}}
-        , m_i64LastIdProposal)
+        , i64IdProposal)
       , "Unable to update proposal on database", false);
   }
   else if ("proposal_open_contract" == strMsgType)
@@ -2156,8 +2139,9 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     QMap<QString, QString> mapValuesDbInsert = mapValues;
     mapValuesDbInsert.insert("req_id"
       , QString::number(ui->sbReqIdSent->value()));
-    m_i64TrendIdSelected = m_DbTrendInsert(mapValuesDbInsert);
-    RETURN_IFW(-1 == m_i64TrendIdSelected
+    // reset selected trend
+    int64_t i64IdTrend = m_DbTrendInsert(mapValuesDbInsert);
+    RETURN_IFW(-1 == i64IdTrend
       , "Unable to insert trend on database", false);
     // store info
     sTrendInfo info;
@@ -2178,7 +2162,7 @@ bool CAppBrokerBinary::m_SendSocketMessage(const QString& strMsgType
     info.strMargin = mapValuesDbInsert.value("margin");
     
     info.i64ReqId = ui->sbReqIdSent->value();
-    m_mapTrendId2Info.insert(m_i64TrendIdSelected, info);
+    m_mapTrendId2Info.insert(i64IdTrend, info);
   }
   else {
     RETURN_IFC_WDG(true, QString("Message type %1 is unrecognized")
@@ -2222,7 +2206,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
   QJsonObject msg = doc.object();
   QJsonObject msg__error;
   bool bInsertHistory = true;
-  bool bProposalGOByTrend = false;
+  int64_t i64ProposalIdTrendToGO = -1;
   /* Update req_id for repsonses */
   int64_t i64ReqIdRecv = -1;
   /* Checks if message is error */
@@ -2243,7 +2227,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     if (m_JSonValueStr(msg, "msg_type", strMsgType) &&
         m_JSonValueLong(msg, "req_id", i64ReqIdRecv)) 
     {
-      if (("proposal" == strMsgType) || ("buy" == strMsgType)) {
+      if ("proposal"               == strMsgType || 
+          "buy"                    == strMsgType || 
+          "proposal_open_contract" == strMsgType) {
         sProposalInfo info;
         int i64Id = m_i64IdProposalByInfo("req_id"
           , QString::number(i64ReqIdRecv), info);
@@ -2332,26 +2318,22 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         INFO_APP_WDG("id proposal:", msg__proposal__id);
         mapValues.insert("id", msg__proposal__id);
         /* update map Proposal with ProposalId */
-        RETURN_IFW_WDG(-1 == m_i64LastIdProposal
-          , "Cannot retrieve last inserted proposal", false);
-        RETURN_IFW_WDG(!m_mapProposalId2Info.contains(m_i64LastIdProposal)
-          , QString("Id Proposal %1 not present on database")
-            .arg(QString::number(m_i64LastIdProposal))
+        sProposalInfo info;
+        int i64IdProposal = m_i64IdProposalByInfo("req_id"
+          , QString::number(i64ReqIdRecv), info);
+        RETURN_IFW_WDG(-1 == i64IdProposal
+          , QString("Cannot retrieve from Proposal Info with a req_id=%1")
+            .arg(QString::number(i64ReqIdRecv))
           , false);
-        sProposalInfo info = m_mapProposalId2Info.value(m_i64LastIdProposal);
         info.strProposalId = msg__proposal__id;
-        m_mapProposalId2Info.insert(m_i64LastIdProposal, info);
+        m_mapProposalId2Info.insert(i64IdProposal, info);
         /* Update proposal on database */
         RETURN_IFW(!m_DbProposalUpdate(
               {{"status", "proposal recv"},{"proposal_id",msg__proposal__id}}
-            , m_i64LastIdProposal)
+            , i64IdProposal)
           , "Unable to update proposal on database", false);
         if (0 != info.i64TrendId) {
-          bProposalGOByTrend = true;
-        }
-        else {
-          /* Update Status: WAIT FOR CONFIRM */
-          m_StatusUpdate(Status::kWAITFORCON);
+          i64ProposalIdTrendToGO = i64IdProposal;
         }
       }
       else if ("buy" == strMsgType)
@@ -2377,7 +2359,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         int i64Id = m_i64IdProposalByInfo("proposal_id"
           , msg__echo_req__buy, info);
         RETURN_IFW_WDG(-1 == i64Id
-          , QString("Cannot retrieve from Proposal Info a proposal_id = %1")
+          , QString("Cannot retrieve from Proposal Info with a proposal_id=%1")
             .arg(msg__echo_req__buy)
           , false);
         info.strContractId = msg__buy__contract_id;
@@ -2390,10 +2372,11 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , "Unable to update proposal on database", false);
         /* Send proposal_open_contract */
         RETURN_IFW_WDG(!m_SendSocketMessage("proposal_open_contract"
-          , {{"contract_id",msg__buy__contract_id}})
+          , {
+                {"contract_id", msg__buy__contract_id}
+              , {"req_id"     , QString::number(info.i64ReqId)}
+            })
           , "Error on send proposal_open_contract request", false);
-        /* Update Status: AUTHORIZED */
-        m_StatusUpdate(Status::kAUTHORIZED);
       }
       else if ("proposal_open_contract" == strMsgType) 
       { /* Proposal open contract response */
@@ -2464,7 +2447,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
         int i64Id = m_i64IdProposalByInfo("contract_id"
           , msg__proposal_open_contract__contract_id, info);
         RETURN_IFW_WDG(-1 == i64Id
-          , QString("Cannot retrieve from Proposal Info a contract_id = %1")
+          , QString("Cannot retrieve from Proposal Info with a contract_id=%1")
             .arg(msg__proposal_open_contract__contract_id)
           , false);
         bInsertHistory = msg__proposal_open_contract__status != info.strStatus;
@@ -2506,10 +2489,10 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           , msg__tick__epoch)
           , "JSonValue 'epoch' doesn't exist", false);
         sTrendInfo info;
-        m_i64TrendIdSelected = m_i64IdTrendByInfo("req_id"
+        uint64_t i64IdTrend = m_i64IdTrendByInfo("req_id"
           , QString::number(i64ReqIdRecv), info);
-        RETURN_IFW_WDG(-1 == m_i64TrendIdSelected
-          , QString("Cannot retrieve from Trend Info a req_id = %1")
+        RETURN_IFW_WDG(-1 == i64IdTrend
+          , QString("Cannot retrieve from Trend Info with a req_id=%1")
             .arg(QString::number(i64ReqIdRecv))
           , false);
         //Return if different to START
@@ -2539,7 +2522,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
           info.strStatus = "START";
           iCntFilter = 0;
         }
-        m_mapTrendId2Info.insert(m_i64TrendIdSelected, info);
+        m_mapTrendId2Info.insert(i64IdTrend, info);
         /* Update trend on database */
         RETURN_IFW(!m_DbTrendUpdate({
                 {"status"         , info.strStatus}
@@ -2547,11 +2530,11 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
               , {"value"          , QString::number(f32Value)}
               , {"quote"          , info.strQuote}
               , {"difference"     , info.strDifference}}
-            , m_i64TrendIdSelected)
+            , i64IdTrend)
           , "Unable to update trend on database", false);
         if (info.strStatus.endsWith("GO")) {
           // reset tick
-          slotOnTrendStopClicked();
+          m_TrendStop(i64IdTrend);
           // proposal
           RETURN_IFW_WDG(!m_SendSocketMessage("proposal"
               , { 
@@ -2565,7 +2548,7 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
                   , {"symbol"       , QString("frx%1%2")
                                         .arg(info.strSymbolA)
                                         .arg(info.strSymbolB)}
-                  , {"trend_id"     , QString::number(m_i64TrendIdSelected)}
+                  , {"trend_id"     , QString::number(i64IdTrend)}
                 })
             , "Error on send proposal request", false);
         }
@@ -2584,9 +2567,9 @@ bool CAppBrokerBinary::m_RecvSocketMessage(const QString& strMsg
     , {"parameters", strParameters}
     , {"details"   , strMsg} })
     , "Unable to insert history record on database", false);
-  if (bProposalGOByTrend) {
-    RETURN_IFW_WDG(!m_ProposalGO(true), "Error on place proposal by trend"
-      , false);
+  if (-1 != i64ProposalIdTrendToGO) {
+    RETURN_IFW_WDG(!m_ProposalGO(i64ProposalIdTrendToGO, true)
+      , "Error on place proposal by trend", false);
   }
   return true;
 }
@@ -2801,9 +2784,9 @@ bool CAppBrokerBinary::m_ProposalResumeUpdate()
   {
     QSqlQuery qry;
     QString strQuery = mapRole2Query.value(strRole);
-    if (-1 != m_i64SessionIdSelected) {
+    if (-1 != m_i64IdSessionSelected) {
       strQuery.append(QString(" AND session_id=%1")
-        .arg(m_i64SessionIdSelected));
+        .arg(m_i64IdSessionSelected));
     }
     RETURN_IFW_WDG(!qry.exec(strQuery)
       , QString("Unable to execute query [%1] E=%2")
@@ -2868,25 +2851,24 @@ void CAppBrokerBinary::m_DetailsUpdate(const QSqlQueryModel& model, int row)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-bool CAppBrokerBinary::m_ProposalGO(bool bByTrend)
+bool CAppBrokerBinary::m_ProposalGO(const int64_t& i64IdProposal
+  , bool bByTrend)
 {
   /* retrieve info for mapped proposal*/
-  QString strContractType = m_mapProposalId2Info.value(m_i64LastIdProposal)
-    .strContractType;
-  QString strProposalId = m_mapProposalId2Info.value(m_i64LastIdProposal)
-    .strProposalId;
-  QString strPrice = m_mapProposalId2Info.value(m_i64LastIdProposal)
-    .strPrice;
+  RETURN_IFW_WDG(!m_mapProposalId2Info.contains(i64IdProposal)
+    , QString("Id Proposal %1 not present on database")
+      .arg(QString::number(i64IdProposal))
+    , false);
+  sProposalInfo info = m_mapProposalId2Info.value(i64IdProposal);
   /* Update proposal on database */
-  RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, m_i64LastIdProposal)
+  RETURN_IFW(!m_DbProposalUpdate({{"status", "GO"}}, i64IdProposal)
     , "Unable to update proposal on database", false);
-  /* reset last proposal: all next queries pass by map */
-  m_i64LastIdProposal = -1;    
   // buy
   RETURN_IFW_WDG(!m_SendSocketMessage("buy"
       , { 
-            {"buy"  , strProposalId} 
-          , {"price", strPrice}
+            {"buy"   , info.strProposalId} 
+          , {"price" , info.strPrice}
+          , {"req_id", QString::number(info.i64ReqId)}
         })
     , "Error on send proposal request", false);
   return true;
@@ -2942,15 +2924,67 @@ float CAppBrokerBinary::m_ValueTrend(sTrendInfo& info)
  *           INTERFACES: None
  *         SUBORDINATES: None
  * ========================================================================== */
-void CAppBrokerBinary::m_TrendControlsEnable()
+void CAppBrokerBinary::m_TrendControlsEnable(const int64_t& i64IdTrend)
 {
   ui->pbTrendStop->setEnabled(false);
   ui->pbTrendDelete->setEnabled(false);
-  RETURN_IF(-1 == m_i64TrendIdSelected,);
-  RETURN_IFW_WDG(!m_mapTrendId2Info.contains(m_i64TrendIdSelected)
-    , QString("Cannot retrieve from Trend Info")
-    , );
-  sTrendInfo info = m_mapTrendId2Info.value(m_i64TrendIdSelected);  
+  RETURN_IF(-1 == i64IdTrend,);
+  RETURN_IF(!m_mapTrendId2Info.contains(i64IdTrend),);
+  sTrendInfo info = m_mapTrendId2Info.value(i64IdTrend);  
   ui->pbTrendStop->setEnabled(info.strStatus.startsWith("START"));
   ui->pbTrendDelete->setEnabled(true);
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_TrendStop
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190219
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_TrendStop(const int64_t& i64IdTrend)
+{
+  RETURN_IFW_WDG(-1 == i64IdTrend
+    , QString("Cannot retrieve Trend from id=%1")
+      .arg(QString::number(i64IdTrend)), );  
+  RETURN_IFW_WDG(!m_mapTrendId2Info.contains(i64IdTrend)
+    , QString("Cannot retrieve from Trend Info trend_id=%1")
+      .arg(QString::number(i64IdTrend)), );
+  sTrendInfo info = m_mapTrendId2Info.value(i64IdTrend);
+  info.strStatus = "STOP";
+  m_mapTrendId2Info.insert(i64IdTrend, info);
+  RETURN_IFC_WDG(!m_SendSocketMessage("forget"
+    , { 
+        {"forget"         , info.strForget }
+    }), "Error on send ticks request", );
+  /* Update trend on database */
+  RETURN_IFW(!m_DbTrendUpdate({
+          {"status", info.strStatus  }}
+      , i64IdTrend)
+    , "Unable to update trend on database", );
+}
+
+/* ==========================================================================
+ *        FUNCTION NAME: m_TrendDelete
+ * FUNCTION DESCRIPTION: 
+ *        CREATION DATE: 20190219
+ *              AUTHORS: Fabrizio De Siati
+ *           INTERFACES: None
+ *         SUBORDINATES: None
+ * ========================================================================== */
+void CAppBrokerBinary::m_TrendDelete(const int64_t& i64IdTrend)
+{
+  RETURN_IFW_WDG(-1 == i64IdTrend
+    , QString("Cannot retrieve Trend from id=%1")
+      .arg(QString::number(i64IdTrend)), );  
+  // Stop if required
+  if (ui->pbTrendStop->isEnabled()) {
+    m_TrendStop(i64IdTrend);
+  }
+  /* Update trend on database */
+  RETURN_IFW(!m_DbTrendUpdate({
+          {"deleted", "1" }}
+      , i64IdTrend)
+    , "Unable to update trend on database", );
 }
